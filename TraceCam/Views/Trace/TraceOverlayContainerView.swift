@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// Container for the floating reference image overlay with interactive drag, pinch, and rotate gestures.
+/// Corner brackets always render when the overlay is visible, regardless of lock state.
+/// Lock only disables gesture interaction.
 public struct TraceOverlayContainerView: View {
     @ObservedObject var viewModel: TraceViewModel
 
-    // Gesture state tracking
+    // Gesture state tracking — stored independently so cumulative translation doesn't compound
     @State private var dragOffset: CGSize = .zero
     @State private var pinchScale: CGFloat = 1.0
     @State private var rotationDelta: Angle = .zero
@@ -21,7 +23,8 @@ public struct TraceOverlayContainerView: View {
 
             ZStack {
                 // The Reference Image with Corner Brackets
-                if !viewModel.isHidden {
+                // Visible ONLY in .allVisible state; hidden in .photoHidden and .allHidden
+                if viewModel.visibility == .allVisible {
                     ZStack {
                         Image(uiImage: viewModel.displayFilteredImage)
                             .resizable()
@@ -29,7 +32,8 @@ public struct TraceOverlayContainerView: View {
                             .scaleEffect(x: viewModel.isFlipped ? -1 : 1, y: 1)
                             .opacity(viewModel.opacity)
 
-                        // Signature Violet Corner Brackets
+                        // Signature Violet Corner Brackets — always visible when overlay is shown
+                        // Lock does NOT hide these; only the Hide button does.
                         CornerBracketsView(cornerLength: 32, lineWidth: 4.5)
                     }
                     .frame(width: baseWidth, height: baseHeight)
@@ -40,13 +44,14 @@ public struct TraceOverlayContainerView: View {
                         x: viewModel.offset.width + dragOffset.width,
                         y: viewModel.offset.height + dragOffset.height
                     )
-                    // Gestures (disabled if locked)
+                    // Gestures (disabled when locked — but image + brackets still display)
                     .gesture(
                         viewModel.isLocked ? nil : makeCombinedGestures()
                     )
+                    .transition(.opacity)
                 }
 
-                // Guide Grid Overlay (if enabled)
+                // Guide Grid Overlay (always shown when enabled, even if photo is hidden)
                 if viewModel.guideType != .none {
                     GuideGridView(type: viewModel.guideType)
                 }

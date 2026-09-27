@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Screen 2: Dedicated image cropping interface with freeform 4-corner handles, 90° rotation, zoom, and undo/redo.
+/// FIXED: Drag gestures now track the initial position at gesture start, preventing exponential fling.
 public struct CropView: View {
     public let originalImage: UIImage
     public let onReturnHome: () -> Void
@@ -80,9 +81,15 @@ public struct CropView: View {
                         .rotationEffect(.degrees(Double(viewModel.rotationDegrees)))
                         .scaleEffect(viewModel.zoomScale)
                         .frame(width: canvasWidth, height: canvasHeight)
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    viewModel.zoomScale = max(0.5, min(value, 4.0))
+                                }
+                        )
 
-                    // 4-Corner Draggable Crop Overlay
-                    InteractiveCropBoxView(
+                    // 4-Corner Draggable Crop Overlay — FIXED gestures
+                    StableCropBoxView(
                         cropRect: $viewModel.cropRect,
                         containerSize: CGSize(width: canvasWidth, height: canvasHeight),
                         onCommit: {
@@ -124,14 +131,23 @@ public struct CropView: View {
     }
 }
 
-/// Interactive Crop Box with Dimmed Exterior Mask and 4 Draggable Corner Handles.
-struct InteractiveCropBoxView: View {
+// MARK: - StableCropBoxView (FIXED gesture tracking)
+
+/// Interactive Crop Box with proper gesture start-state tracking.
+/// The previous version applied `DragGesture.translation` (which is cumulative from gesture start)
+/// as a per-frame delta, causing exponential fly-off. This version captures the rect at gesture
+/// start and computes position = startRect + normalizedTranslation.
+struct StableCropBoxView: View {
     @Binding var cropRect: CGRect // Normalized 0...1
     let containerSize: CGSize
     let onCommit: () -> Void
 
-    private let handleSize: CGFloat = 28
+    private let handleSize: CGFloat = 32
     private let violetColor = Color(red: 0.54, green: 0.28, blue: 0.98)
+
+    // Track starting position when each gesture begins
+    @State private var boxDragStart: CGRect? = nil
+    @State private var cornerDragStart: CGRect? = nil
 
     var body: some View {
         let pixelRect = CGRect(
@@ -146,61 +162,53 @@ struct InteractiveCropBoxView: View {
             DimmedCropMask(innerRect: pixelRect, containerSize: containerSize)
                 .allowsHitTesting(false)
 
-            // Crop Box Border & Grid
+            // Crop Box Border
             Rectangle()
                 .stroke(Color.white, lineWidth: 1.5)
                 .frame(width: pixelRect.width, height: pixelRect.height)
                 .position(x: pixelRect.midX, y: pixelRect.midY)
-                .overlay(
-                    // Rule of thirds grid inside crop box
-                    CropInternalGrid(rect: pixelRect)
-                )
+
+            // Rule of thirds grid inside crop box
+            CropInternalGrid(rect: pixelRect)
+                .allowsHitTesting(false)
 
             // Drag whole box gesture
             Color.clear
-                .frame(width: max(0, pixelRect.width - 40), height: max(0, pixelRect.height - 40))
+                .frame(width: max(0, pixelRect.width - handleSize * 2), height: max(0, pixelRect.height - handleSize * 2))
                 .position(x: pixelRect.midX, y: pixelRect.midY)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture()
                         .onChanged { value in
+                            // Capture initial rect on first frame of this gesture
+                            if boxDragStart == nil {
+                                boxDragStart = cropRect
+                            }
+                            guard let startRect = boxDragStart else { return }
+
                             let deltaX = value.translation.width / containerSize.width
                             let deltaY = value.translation.height / containerSize.height
 
-                            var newX = cropRect.origin.x + deltaX
-                            var newY = cropRect.origin.y + deltaY
+                            var newX = startRect.origin.x + deltaX
+                            var newY = startRect.origin.y + deltaY
 
-                            newX = max(0, min(newX, 1.0 - cropRect.width))
-                            newY = max(0, min(newY, 1.0 - cropRect.height))
+                            // Clamp so box doesn't go off-canvas
+                            newX = max(0, min(newX, 1.0 - startRect.width))
+                            newY = max(0, min(newY, 1.0 - startRect.height))
 
-                            cropRect.origin = CGPoint(x: newX, y: newY)
+                            cropRect = CGRect(x: newX, y: newY, width: startRect.width, height: startRect.height)
                         }
                         .onEnded { _ in
+                            boxDragStart = nil
                             onCommit()
                         }
                 )
 
             // 4 Corner Drag Handles
-            // Top-Left
-            cornerHandle(
-                position: CGPoint(x: pixelRect.minX, y: pixelRect.minY),
-                type: .topLeft
-            )
-            // Top-Right
-            cornerHandle(
-                position: CGPoint(x: pixelRect.maxX, y: pixelRect.minY),
-                type: .topRight
-            )
-            // Bottom-Left
-            cornerHandle(
-                position: CGPoint(x: pixelRect.minX, y: pixelRect.maxY),
-                type: .bottomLeft
-            )
-            // Bottom-Right
-            cornerHandle(
-                position: CGPoint(x: pixelRect.maxX, y: pixelRect.maxY),
-                type: .bottomRight
-            )
+            cornerHandle(position: CGPoint(x: pixelRect.minX, y: pixelRect.minY), type: .topLeft)
+            cornerHandle(position: CGPoint(x: pixelRect.maxX, y: pixelRect.minY), type: .topRight)
+            cornerHandle(position: CGPoint(x: pixelRect.minX, y: pixelRect.maxY), type: .bottomLeft)
+            cornerHandle(position: CGPoint(x: pixelRect.maxX, y: pixelRect.maxY), type: .bottomRight)
         }
     }
 
@@ -218,41 +226,50 @@ struct InteractiveCropBoxView: View {
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        updateCorner(type: type, translation: value.translation)
+                        // Capture initial rect on first frame
+                        if cornerDragStart == nil {
+                            cornerDragStart = cropRect
+                        }
+                        guard let startRect = cornerDragStart else { return }
+
+                        updateCorner(type: type, startRect: startRect, translation: value.translation)
                     }
                     .onEnded { _ in
+                        cornerDragStart = nil
                         onCommit()
                     }
             )
     }
 
-    private func updateCorner(type: CornerType, translation: CGSize) {
-        let minSize: CGFloat = 0.15 // Minimum 15% width and height
+    /// Computes new corner position from the STARTING rect + cumulative translation.
+    /// This prevents the exponential fly-off from the previous implementation.
+    private func updateCorner(type: CornerType, startRect: CGRect, translation: CGSize) {
+        let minSize: CGFloat = 0.12 // Minimum 12% width/height
         let deltaX = translation.width / containerSize.width
         let deltaY = translation.height / containerSize.height
 
-        var r = cropRect
+        var r: CGRect
 
         switch type {
         case .topLeft:
-            let newX = min(r.maxX - minSize, max(0, r.minX + deltaX))
-            let newY = min(r.maxY - minSize, max(0, r.minY + deltaY))
-            r = CGRect(x: newX, y: newY, width: r.maxX - newX, height: r.maxY - newY)
+            let newX = max(0, min(startRect.maxX - minSize, startRect.minX + deltaX))
+            let newY = max(0, min(startRect.maxY - minSize, startRect.minY + deltaY))
+            r = CGRect(x: newX, y: newY, width: startRect.maxX - newX, height: startRect.maxY - newY)
 
         case .topRight:
-            let newMaxX = max(r.minX + minSize, min(1.0, r.maxX + deltaX))
-            let newY = min(r.maxY - minSize, max(0, r.minY + deltaY))
-            r = CGRect(x: r.minX, y: newY, width: newMaxX - r.minX, height: r.maxY - newY)
+            let newMaxX = max(startRect.minX + minSize, min(1.0, startRect.maxX + deltaX))
+            let newY = max(0, min(startRect.maxY - minSize, startRect.minY + deltaY))
+            r = CGRect(x: startRect.minX, y: newY, width: newMaxX - startRect.minX, height: startRect.maxY - newY)
 
         case .bottomLeft:
-            let newX = min(r.maxX - minSize, max(0, r.minX + deltaX))
-            let newMaxY = max(r.minY + minSize, min(1.0, r.maxY + deltaY))
-            r = CGRect(x: newX, y: r.minY, width: r.maxX - newX, height: newMaxY - r.minY)
+            let newX = max(0, min(startRect.maxX - minSize, startRect.minX + deltaX))
+            let newMaxY = max(startRect.minY + minSize, min(1.0, startRect.maxY + deltaY))
+            r = CGRect(x: newX, y: startRect.minY, width: startRect.maxX - newX, height: newMaxY - startRect.minY)
 
         case .bottomRight:
-            let newMaxX = max(r.minX + minSize, min(1.0, r.maxX + deltaX))
-            let newMaxY = max(r.minY + minSize, min(1.0, r.maxY + deltaY))
-            r = CGRect(x: r.minX, y: r.minY, width: newMaxX - r.minX, height: newMaxY - r.minY)
+            let newMaxX = max(startRect.minX + minSize, min(1.0, startRect.maxX + deltaX))
+            let newMaxY = max(startRect.minY + minSize, min(1.0, startRect.maxY + deltaY))
+            r = CGRect(x: startRect.minX, y: startRect.minY, width: newMaxX - startRect.minX, height: newMaxY - startRect.minY)
         }
 
         self.cropRect = r

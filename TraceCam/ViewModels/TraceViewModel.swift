@@ -1,6 +1,44 @@
 import SwiftUI
 import Combine
 import Photos
+import UIKit
+
+/// Controls overlay visibility in a 3-state cycle:
+///  1. allVisible — photo overlay + UI + brackets all shown
+///  2. photoHidden — reference image hidden so you can see your drawing, toolbar still visible
+///  3. allHidden — fully immersive camera view, no toolbar, no overlay. Tap anywhere to restore.
+public enum OverlayVisibility: Int, CaseIterable {
+    case allVisible = 0
+    case photoHidden = 1
+    case allHidden = 2
+
+    public var next: OverlayVisibility {
+        let nextRaw = (self.rawValue + 1) % OverlayVisibility.allCases.count
+        return OverlayVisibility(rawValue: nextRaw) ?? .allVisible
+    }
+
+    public var hideButtonIcon: String {
+        switch self {
+        case .allVisible:
+            return "eye.slash"         // Tap to hide photo
+        case .photoHidden:
+            return "eye.slash.circle"  // Tap to go immersive
+        case .allHidden:
+            return "eye"               // Tap to show all
+        }
+    }
+
+    public var hideButtonLabel: String {
+        switch self {
+        case .allVisible:
+            return "Hide Photo"
+        case .photoHidden:
+            return "Hide All"
+        case .allHidden:
+            return "Show All"
+        }
+    }
+}
 
 /// State snapshot for undo/redo within the Trace session.
 public struct TraceStateSnapshot: Equatable {
@@ -24,8 +62,16 @@ public final class TraceViewModel: ObservableObject {
     @Published public var rotation: Angle = .zero
     @Published public var opacity: Double = 0.5
     @Published public var isFlipped: Bool = false
+
+    // Lock only prevents gesture interaction — does NOT hide brackets or overlay
     @Published public var isLocked: Bool = false
-    @Published public var isHidden: Bool = false
+
+    // 3-state visibility: allVisible → photoHidden → allHidden → (cycle)
+    @Published public var visibility: OverlayVisibility = .allVisible
+
+    // Convenience computed
+    public var isOverlayVisible: Bool { visibility == .allVisible }
+    public var isUIVisible: Bool { visibility != .allHidden }
 
     // Filter & Guide
     @Published public var selectedFilter: TraceFilter = .original {
@@ -37,7 +83,6 @@ public final class TraceViewModel: ObservableObject {
     @Published public var guideType: GuideOverlayType = .none
 
     // Camera controls
-    @Published public var selectedCameraZoom: CGFloat = 1.0
     @Published public var isTorchOn: Bool = false
 
     // UI overlays & sheets
@@ -49,9 +94,17 @@ public final class TraceViewModel: ObservableObject {
     @Published public var showExitConfirmation: Bool = false
     @Published public var toastMessage: String? = nil
 
+    // Drawing session timer
+    @Published public var sessionStartTime: Date = Date()
+    @Published public var sessionElapsed: TimeInterval = 0
+    private var timerTask: Task<Void, Never>?
+
     // Composite export state
     @Published public var compositeImage: UIImage? = nil
     @Published public var isSavingPhoto: Bool = false
+
+    // Screen mode brightness
+    @Published public var previousBrightness: CGFloat = UIScreen.main.brightness
 
     // Undo / Redo history
     private var undoStack: [TraceStateSnapshot] = []
@@ -75,7 +128,6 @@ public final class TraceViewModel: ObservableObject {
         self.existingProjectId = existingProjectId
 
         let defaultOpacity = AppSettings.shared.defaultOpacity
-        let defaultZoom = AppSettings.shared.defaultZoom
         let defaultGuide = AppSettings.shared.defaultGuideType
 
         if let state = initialState {
@@ -85,12 +137,11 @@ public final class TraceViewModel: ObservableObject {
             self.opacity = state.opacity
             self.isFlipped = state.isFlipped
             self.isLocked = state.isLocked
-            self.isHidden = state.isHidden
             self.selectedFilter = state.filter
             self.guideType = state.guideType
+            self.visibility = .allVisible
         } else {
             self.opacity = defaultOpacity
-            self.selectedCameraZoom = defaultZoom
             self.guideType = defaultGuide
         }
 
@@ -98,17 +149,60 @@ public final class TraceViewModel: ObservableObject {
     }
 
     public func onAppear() {
+        sessionStartTime = Date()
+        startSessionTimer()
+
         if mode == .camera {
-            cameraService.startSession()
-            cameraService.setZoom(selectedCameraZoom)
+            cameraService.checkAuthorization()
+            // Apply default 1.0x preset after a brief delay for session to initialize
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self else { return }
+                if let defaultPreset = self.cameraService.zoomPresets.first(where: { $0.label == "1.0x" }) {
+                    self.cameraService.applyZoomPreset(defaultPreset)
+                }
+            }
+        } else {
+            // Screen mode: save current brightness and max it out
+            previousBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 1.0
         }
     }
 
     public func onDisappear() {
+        stopSessionTimer()
+
         if mode == .camera {
             cameraService.stopSession()
+        } else {
+            // Restore previous screen brightness
+            UIScreen.main.brightness = previousBrightness
         }
+
         autoSaveToRecent()
+    }
+
+    // MARK: - Session Timer
+
+    private func startSessionTimer() {
+        timerTask?.cancel()
+        timerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                guard let self = self, !Task.isCancelled else { return }
+                self.sessionElapsed = Date().timeIntervalSince(self.sessionStartTime)
+            }
+        }
+    }
+
+    private func stopSessionTimer() {
+        timerTask?.cancel()
+        timerTask = nil
+    }
+
+    public var formattedElapsed: String {
+        let minutes = Int(sessionElapsed) / 60
+        let seconds = Int(sessionElapsed) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     // MARK: - Transform & Gesture Controls
@@ -169,10 +263,11 @@ public final class TraceViewModel: ObservableObject {
         canRedo = !redoStack.isEmpty
     }
 
+    /// Lock only prevents drag/pinch/rotate gestures. Does NOT affect bracket or overlay visibility.
     public func toggleLock() {
         isLocked.toggle()
         HapticService.shared.impact(.medium)
-        showToast(isLocked ? "Overlay Locked" : "Overlay Unlocked")
+        showToast(isLocked ? "🔒 Overlay Locked" : "🔓 Overlay Unlocked")
     }
 
     public func toggleFlip() {
@@ -183,11 +278,38 @@ public final class TraceViewModel: ObservableObject {
         HapticService.shared.impact(.light)
     }
 
-    public func toggleHidden() {
+    /// Cycle through 3-state visibility: allVisible → photoHidden → allHidden → allVisible
+    public func cycleVisibility() {
         withAnimation(.easeInOut(duration: 0.2)) {
-            isHidden.toggle()
+            visibility = visibility.next
         }
         HapticService.shared.impact(.light)
+
+        switch visibility {
+        case .allVisible:
+            showToast("Everything Visible")
+        case .photoHidden:
+            showToast("Photo Hidden — Check Your Drawing")
+        case .allHidden:
+            showToast("Immersive Mode — Tap to Restore")
+        }
+    }
+
+    /// Quick-peek: temporarily hide overlay, then restore when finger lifts.
+    public func peekStart() {
+        if visibility == .allVisible {
+            withAnimation(.easeOut(duration: 0.1)) {
+                visibility = .photoHidden
+            }
+        }
+    }
+
+    public func peekEnd() {
+        if visibility == .photoHidden {
+            withAnimation(.easeIn(duration: 0.15)) {
+                visibility = .allVisible
+            }
+        }
     }
 
     public func toggleTorch() {
@@ -196,9 +318,8 @@ public final class TraceViewModel: ObservableObject {
         HapticService.shared.impact(.light)
     }
 
-    public func setCameraZoom(_ factor: CGFloat) {
-        selectedCameraZoom = factor
-        cameraService.setZoom(factor)
+    public func selectZoomPreset(_ preset: CameraZoomPreset) {
+        cameraService.applyZoomPreset(preset)
         HapticService.shared.selection()
     }
 
@@ -210,7 +331,7 @@ public final class TraceViewModel: ObservableObject {
             rotation = .zero
             opacity = AppSettings.shared.defaultOpacity
             isFlipped = false
-            isHidden = false
+            visibility = .allVisible
         }
         HapticService.shared.impact(.medium)
         showToast("Reset to Default")
@@ -233,7 +354,7 @@ public final class TraceViewModel: ObservableObject {
             opacity: opacity,
             isFlipped: isFlipped,
             isLocked: isLocked,
-            isHidden: isHidden,
+            isHidden: false,
             filter: selectedFilter,
             guideType: guideType
         )
@@ -257,7 +378,6 @@ public final class TraceViewModel: ObservableObject {
             baseBackground = await cameraService.capturePhoto()
         }
 
-        // Render composite
         let composite = renderComposite(background: baseBackground)
         self.compositeImage = composite
         self.isSavingPhoto = false
@@ -269,7 +389,6 @@ public final class TraceViewModel: ObservableObject {
         let renderer = UIGraphicsImageRenderer(size: targetSize)
 
         return renderer.image { ctx in
-            // Background
             if let bg = background {
                 bg.draw(in: CGRect(origin: .zero, size: targetSize))
             } else {
@@ -277,8 +396,7 @@ public final class TraceViewModel: ObservableObject {
                 ctx.fill(CGRect(origin: .zero, size: targetSize))
             }
 
-            // Burn overlay if not hidden
-            if !isHidden && opacity > 0.01 {
+            if visibility == .allVisible && opacity > 0.01 {
                 let context = ctx.cgContext
                 context.saveGState()
 
