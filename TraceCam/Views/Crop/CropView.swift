@@ -4,14 +4,16 @@ import SwiftUI
 /// FIXED: Drag gestures now track the initial position at gesture start, preventing exponential fling.
 public struct CropView: View {
     public let originalImage: UIImage
+    public let existingProjectId: UUID?
     public let onReturnHome: () -> Void
 
     @StateObject private var viewModel: CropViewModel
     @State private var croppedImageResult: UIImage? = nil
     @State private var navigateToModePicker: Bool = false
 
-    public init(originalImage: UIImage, onReturnHome: @escaping () -> Void) {
+    public init(originalImage: UIImage, existingProjectId: UUID? = nil, onReturnHome: @escaping () -> Void) {
         self.originalImage = originalImage
+        self.existingProjectId = existingProjectId
         self.onReturnHome = onReturnHome
         _viewModel = StateObject(wrappedValue: CropViewModel(sourceImage: originalImage))
     }
@@ -125,7 +127,11 @@ public struct CropView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToModePicker) {
             if let cropped = croppedImageResult {
-                ModePickerView(croppedImage: cropped, onReturnHome: onReturnHome)
+                ModePickerView(
+                    croppedImage: cropped,
+                    existingProjectId: existingProjectId,
+                    onReturnHome: onReturnHome
+                )
             }
         }
     }

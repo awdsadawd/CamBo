@@ -9,7 +9,6 @@ public final class AppSettings: ObservableObject {
         static let defaultOpacity = "tracecam_default_opacity"
         static let defaultZoom = "tracecam_default_zoom"
         static let hapticsEnabled = "tracecam_haptics_enabled"
-        static let defaultGuideType = "tracecam_default_guide_type"
         static let appAppearance = "tracecam_app_appearance"
     }
 
@@ -32,12 +31,6 @@ public final class AppSettings: ObservableObject {
         }
     }
 
-    @Published public var defaultGuideType: GuideOverlayType {
-        didSet {
-            UserDefaults.standard.set(defaultGuideType.rawValue, forKey: Keys.defaultGuideType)
-        }
-    }
-
     @Published public var appAppearance: String { // "system", "dark", "light"
         didSet {
             UserDefaults.standard.set(appAppearance, forKey: Keys.appAppearance)
@@ -49,8 +42,6 @@ public final class AppSettings: ObservableObject {
         self.defaultOpacity = defaults.object(forKey: Keys.defaultOpacity) != nil ? defaults.double(forKey: Keys.defaultOpacity) : 0.5
         self.defaultZoom = defaults.object(forKey: Keys.defaultZoom) != nil ? defaults.double(forKey: Keys.defaultZoom) : 1.0
         self.hapticsEnabled = defaults.object(forKey: Keys.hapticsEnabled) != nil ? defaults.bool(forKey: Keys.hapticsEnabled) : true
-        let savedGuide = defaults.string(forKey: Keys.defaultGuideType) ?? GuideOverlayType.none.rawValue
-        self.defaultGuideType = GuideOverlayType(rawValue: savedGuide) ?? .none
         self.appAppearance = defaults.string(forKey: Keys.appAppearance) ?? "system"
 
         HapticService.shared.isEnabled = self.hapticsEnabled

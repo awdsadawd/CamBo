@@ -4,7 +4,7 @@ import Photos
 import UIKit
 
 /// Controls overlay visibility in a 3-state cycle:
-///  1. allVisible — photo overlay + UI + brackets all shown
+///  1. allVisible — photo overlay + UI all shown (brackets depend on lock)
 ///  2. photoHidden — reference image hidden so you can see your drawing, toolbar still visible
 ///  3. allHidden — fully immersive camera view, no toolbar, no overlay. Tap anywhere to restore.
 public enum OverlayVisibility: Int, CaseIterable {
@@ -20,11 +20,11 @@ public enum OverlayVisibility: Int, CaseIterable {
     public var hideButtonIcon: String {
         switch self {
         case .allVisible:
-            return "eye.slash"         // Tap to hide photo
+            return "eye.slash"
         case .photoHidden:
-            return "eye.slash.circle"  // Tap to go immersive
+            return "eye.slash.circle"
         case .allHidden:
-            return "eye"               // Tap to show all
+            return "eye"
         }
     }
 
@@ -49,10 +49,10 @@ public struct TraceStateSnapshot: Equatable {
     public var isFlipped: Bool
 }
 
-/// Core ViewModel managing the tracing overlay, camera controls, filters, guides, gestures, and composite export.
+/// Core ViewModel managing the tracing overlay, camera controls, filters, gestures, and composite export.
 @MainActor
 public final class TraceViewModel: ObservableObject {
-    public let sourceCroppedImage: UIImage
+    @Published public var sourceCroppedImage: UIImage
     public let mode: DrawingMode
     public var existingProjectId: UUID?
 
@@ -63,24 +63,20 @@ public final class TraceViewModel: ObservableObject {
     @Published public var opacity: Double = 0.5
     @Published public var isFlipped: Bool = false
 
-    // Lock only prevents gesture interaction — does NOT hide brackets or overlay
+    // Lock prevents gesture interaction AND hides corner brackets (image stays visible)
     @Published public var isLocked: Bool = false
 
-    // 3-state visibility: allVisible → photoHidden → allHidden → (cycle)
+    // 3-state visibility
     @Published public var visibility: OverlayVisibility = .allVisible
 
-    // Convenience computed
     public var isOverlayVisible: Bool { visibility == .allVisible }
     public var isUIVisible: Bool { visibility != .allHidden }
 
-    // Filter & Guide
+    // Filter
     @Published public var selectedFilter: TraceFilter = .original {
-        didSet {
-            updateFilteredImage()
-        }
+        didSet { updateFilteredImage() }
     }
     @Published public var displayFilteredImage: UIImage
-    @Published public var guideType: GuideOverlayType = .none
 
     // Camera controls
     @Published public var isTorchOn: Bool = false
@@ -88,10 +84,10 @@ public final class TraceViewModel: ObservableObject {
     // UI overlays & sheets
     @Published public var showOpacitySlider: Bool = false
     @Published public var showFilterSheet: Bool = false
-    @Published public var showGuideSheet: Bool = false
     @Published public var showInfoTips: Bool = false
     @Published public var showFinishExport: Bool = false
     @Published public var showExitConfirmation: Bool = false
+    @Published public var showRecropSheet: Bool = false
     @Published public var toastMessage: String? = nil
 
     // Drawing session timer
@@ -104,7 +100,7 @@ public final class TraceViewModel: ObservableObject {
     @Published public var isSavingPhoto: Bool = false
 
     // Screen mode brightness
-    @Published public var previousBrightness: CGFloat = UIScreen.main.brightness
+    private var previousBrightness: CGFloat = 0.5
 
     // Undo / Redo history
     private var undoStack: [TraceStateSnapshot] = []
@@ -127,9 +123,6 @@ public final class TraceViewModel: ObservableObject {
         self.mode = mode
         self.existingProjectId = existingProjectId
 
-        let defaultOpacity = AppSettings.shared.defaultOpacity
-        let defaultGuide = AppSettings.shared.defaultGuideType
-
         if let state = initialState {
             self.offset = state.offset
             self.scale = state.scale
@@ -138,23 +131,25 @@ public final class TraceViewModel: ObservableObject {
             self.isFlipped = state.isFlipped
             self.isLocked = state.isLocked
             self.selectedFilter = state.filter
-            self.guideType = state.guideType
             self.visibility = .allVisible
         } else {
-            self.opacity = defaultOpacity
-            self.guideType = defaultGuide
+            self.opacity = AppSettings.shared.defaultOpacity
         }
 
         updateFilteredImage()
     }
 
+    // MARK: - Lifecycle
+
     public func onAppear() {
+        // ★ CRITICAL: Prevent screen from auto-locking during tracing
+        UIApplication.shared.isIdleTimerDisabled = true
+
         sessionStartTime = Date()
         startSessionTimer()
 
         if mode == .camera {
             cameraService.checkAuthorization()
-            // Apply default 1.0x preset after a brief delay for session to initialize
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
                 if let defaultPreset = self.cameraService.zoomPresets.first(where: { $0.label == "1.0x" }) {
@@ -162,19 +157,21 @@ public final class TraceViewModel: ObservableObject {
                 }
             }
         } else {
-            // Screen mode: save current brightness and max it out
+            // Screen mode: max brightness for tracing through paper
             previousBrightness = UIScreen.main.brightness
             UIScreen.main.brightness = 1.0
         }
     }
 
     public func onDisappear() {
+        // ★ Restore idle timer so screen can lock normally
+        UIApplication.shared.isIdleTimerDisabled = false
+
         stopSessionTimer()
 
         if mode == .camera {
             cameraService.stopSession()
         } else {
-            // Restore previous screen brightness
             UIScreen.main.brightness = previousBrightness
         }
 
@@ -187,7 +184,7 @@ public final class TraceViewModel: ObservableObject {
         timerTask?.cancel()
         timerTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard let self = self, !Task.isCancelled else { return }
                 self.sessionElapsed = Date().timeIntervalSince(self.sessionStartTime)
             }
@@ -209,11 +206,7 @@ public final class TraceViewModel: ObservableObject {
 
     public func recordHistory() {
         let snapshot = TraceStateSnapshot(
-            offset: offset,
-            scale: scale,
-            rotation: rotation,
-            opacity: opacity,
-            isFlipped: isFlipped
+            offset: offset, scale: scale, rotation: rotation, opacity: opacity, isFlipped: isFlipped
         )
         undoStack.append(snapshot)
         redoStack.removeAll()
@@ -222,14 +215,7 @@ public final class TraceViewModel: ObservableObject {
 
     public func undo() {
         guard let previous = undoStack.popLast() else { return }
-        let current = TraceStateSnapshot(
-            offset: offset,
-            scale: scale,
-            rotation: rotation,
-            opacity: opacity,
-            isFlipped: isFlipped
-        )
-        redoStack.append(current)
+        redoStack.append(TraceStateSnapshot(offset: offset, scale: scale, rotation: rotation, opacity: opacity, isFlipped: isFlipped))
         applySnapshot(previous)
         updateUndoRedoStatus()
         HapticService.shared.impact(.light)
@@ -237,78 +223,41 @@ public final class TraceViewModel: ObservableObject {
 
     public func redo() {
         guard let next = redoStack.popLast() else { return }
-        let current = TraceStateSnapshot(
-            offset: offset,
-            scale: scale,
-            rotation: rotation,
-            opacity: opacity,
-            isFlipped: isFlipped
-        )
-        undoStack.append(current)
+        undoStack.append(TraceStateSnapshot(offset: offset, scale: scale, rotation: rotation, opacity: opacity, isFlipped: isFlipped))
         applySnapshot(next)
         updateUndoRedoStatus()
         HapticService.shared.impact(.light)
     }
 
-    private func applySnapshot(_ snapshot: TraceStateSnapshot) {
-        self.offset = snapshot.offset
-        self.scale = snapshot.scale
-        self.rotation = snapshot.rotation
-        self.opacity = snapshot.opacity
-        self.isFlipped = snapshot.isFlipped
+    private func applySnapshot(_ s: TraceStateSnapshot) {
+        offset = s.offset; scale = s.scale; rotation = s.rotation; opacity = s.opacity; isFlipped = s.isFlipped
     }
 
     private func updateUndoRedoStatus() {
-        canUndo = !undoStack.isEmpty
-        canRedo = !redoStack.isEmpty
+        canUndo = !undoStack.isEmpty; canRedo = !redoStack.isEmpty
     }
 
-    /// Lock only prevents drag/pinch/rotate gestures. Does NOT affect bracket or overlay visibility.
+    /// Lock: prevents drag/pinch/rotate AND hides corner brackets. Image stays visible.
     public func toggleLock() {
         isLocked.toggle()
         HapticService.shared.impact(.medium)
-        showToast(isLocked ? "🔒 Overlay Locked" : "🔓 Overlay Unlocked")
+        showToast(isLocked ? "🔒 Locked — Brackets Hidden" : "🔓 Unlocked")
     }
 
     public func toggleFlip() {
         recordHistory()
-        withAnimation(.easeInOut(duration: 0.25)) {
-            isFlipped.toggle()
-        }
+        withAnimation(.easeInOut(duration: 0.25)) { isFlipped.toggle() }
         HapticService.shared.impact(.light)
     }
 
-    /// Cycle through 3-state visibility: allVisible → photoHidden → allHidden → allVisible
+    /// Cycle: allVisible → photoHidden → allHidden → allVisible
     public func cycleVisibility() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            visibility = visibility.next
-        }
+        withAnimation(.easeInOut(duration: 0.2)) { visibility = visibility.next }
         HapticService.shared.impact(.light)
-
         switch visibility {
-        case .allVisible:
-            showToast("Everything Visible")
-        case .photoHidden:
-            showToast("Photo Hidden — Check Your Drawing")
-        case .allHidden:
-            showToast("Immersive Mode — Tap to Restore")
-        }
-    }
-
-    /// Quick-peek: temporarily hide overlay, then restore when finger lifts.
-    public func peekStart() {
-        if visibility == .allVisible {
-            withAnimation(.easeOut(duration: 0.1)) {
-                visibility = .photoHidden
-            }
-        }
-    }
-
-    public func peekEnd() {
-        if visibility == .photoHidden {
-            withAnimation(.easeIn(duration: 0.15)) {
-                visibility = .allVisible
-            }
+        case .allVisible: showToast("Everything Visible")
+        case .photoHidden: showToast("Photo Hidden — Check Your Drawing")
+        case .allHidden: showToast("Immersive Mode — Tap to Restore")
         }
     }
 
@@ -326,21 +275,27 @@ public final class TraceViewModel: ObservableObject {
     public func resetTransform() {
         recordHistory()
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            offset = .zero
-            scale = 1.0
-            rotation = .zero
+            offset = .zero; scale = 1.0; rotation = .zero
             opacity = AppSettings.shared.defaultOpacity
-            isFlipped = false
-            visibility = .allVisible
+            isFlipped = false; visibility = .allVisible; isLocked = false
         }
         HapticService.shared.impact(.medium)
         showToast("Reset to Default")
     }
 
+    // MARK: - Re-crop
+
+    public func updateSourceImage(_ newImage: UIImage) {
+        sourceCroppedImage = newImage
+        updateFilteredImage()
+        HapticService.shared.notification(.success)
+        showToast("Image Re-cropped ✂️")
+    }
+
     // MARK: - Filters
 
     private func updateFilteredImage() {
-        self.displayFilteredImage = filterService.applyFilter(selectedFilter, to: sourceCroppedImage)
+        displayFilteredImage = filterService.applyFilter(selectedFilter, to: sourceCroppedImage)
     }
 
     // MARK: - Project Persistence
@@ -356,38 +311,35 @@ public final class TraceViewModel: ObservableObject {
             isLocked: isLocked,
             isHidden: false,
             filter: selectedFilter,
-            guideType: guideType
+            guideType: .none
         )
 
         _ = historyStore.saveProject(
             image: sourceCroppedImage,
             mode: mode,
             overlayState: currentState,
-            existingId: existingProjectId
+            existingId: existingProjectId,
+            sessionDuration: sessionElapsed
         )
     }
 
-    // MARK: - Composite Generation & Photo Saving
+    // MARK: - Composite & Save
 
     public func prepareFinish() async {
         isSavingPhoto = true
         autoSaveToRecent()
 
-        var baseBackground: UIImage? = nil
-        if mode == .camera {
-            baseBackground = await cameraService.capturePhoto()
-        }
+        var bg: UIImage? = nil
+        if mode == .camera { bg = await cameraService.capturePhoto() }
 
-        let composite = renderComposite(background: baseBackground)
-        self.compositeImage = composite
-        self.isSavingPhoto = false
-        self.showFinishExport = true
+        compositeImage = renderComposite(background: bg)
+        isSavingPhoto = false
+        showFinishExport = true
     }
 
     public func renderComposite(background: UIImage?) -> UIImage {
         let targetSize = background?.size ?? CGSize(width: 1080, height: 1920)
         let renderer = UIGraphicsImageRenderer(size: targetSize)
-
         return renderer.image { ctx in
             if let bg = background {
                 bg.draw(in: CGRect(origin: .zero, size: targetSize))
@@ -395,23 +347,17 @@ public final class TraceViewModel: ObservableObject {
                 UIColor.white.setFill()
                 ctx.fill(CGRect(origin: .zero, size: targetSize))
             }
-
             if visibility == .allVisible && opacity > 0.01 {
                 let context = ctx.cgContext
                 context.saveGState()
-
                 let center = CGPoint(x: targetSize.width / 2 + offset.width, y: targetSize.height / 2 + offset.height)
                 context.translateBy(x: center.x, y: center.y)
                 context.rotate(by: CGFloat(rotation.radians))
-                if isFlipped {
-                    context.scaleBy(x: -1, y: 1)
-                }
-
+                if isFlipped { context.scaleBy(x: -1, y: 1) }
                 let overlayWidth = targetSize.width * 0.75 * scale
                 let aspect = displayFilteredImage.size.height / displayFilteredImage.size.width
                 let overlayHeight = overlayWidth * aspect
                 let rect = CGRect(x: -overlayWidth / 2, y: -overlayHeight / 2, width: overlayWidth, height: overlayHeight)
-
                 context.setAlpha(CGFloat(opacity))
                 displayFilteredImage.draw(in: rect)
                 context.restoreGState()
@@ -421,14 +367,11 @@ public final class TraceViewModel: ObservableObject {
 
     public func saveCompositeToPhotos() async -> Bool {
         guard let composite = compositeImage else { return false }
-
         return await withCheckedContinuation { continuation in
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
                 guard status == .authorized || status == .limited else {
-                    continuation.resume(returning: false)
-                    return
+                    continuation.resume(returning: false); return
                 }
-
                 UIImageWriteToSavedPhotosAlbum(composite, nil, nil, nil)
                 HapticService.shared.notification(.success)
                 continuation.resume(returning: true)
@@ -437,12 +380,10 @@ public final class TraceViewModel: ObservableObject {
     }
 
     public func showToast(_ message: String) {
-        self.toastMessage = message
+        toastMessage = message
         Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            if self.toastMessage == message {
-                self.toastMessage = nil
-            }
+            if toastMessage == message { toastMessage = nil }
         }
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Core Tracing View supporting both "Draw with Camera" and "Draw with Screen" modes.
-/// Updated: 3-state hide cycle, proper lens zoom presets, drawing timer, long-press peek, guide grid in all modes.
+/// Core Tracing View — Camera and Screen modes.
+/// Guides removed. Lock hides brackets. Screen stays awake. Re-crop sheet. Session timer.
 public struct CameraTraceView: View {
     @StateObject var viewModel: TraceViewModel
     @Environment(\.dismiss) private var dismiss
@@ -15,64 +15,54 @@ public struct CameraTraceView: View {
         onReturnHome: @escaping () -> Void
     ) {
         _viewModel = StateObject(wrappedValue: TraceViewModel(
-            image: image,
-            mode: mode,
-            initialState: initialState,
-            existingProjectId: existingProjectId
+            image: image, mode: mode, initialState: initialState, existingProjectId: existingProjectId
         ))
         self.onReturnHome = onReturnHome
     }
 
     public var body: some View {
         ZStack {
-            // MARK: - Background Layer
+            // MARK: - Background
             if viewModel.mode == .camera {
                 CameraPreviewView(cameraService: viewModel.cameraService)
                     .ignoresSafeArea()
             } else {
-                Color.white
-                    .ignoresSafeArea()
+                Color.white.ignoresSafeArea()
             }
 
-            // MARK: - Interactive Overlay Layer
+            // MARK: - Overlay
             TraceOverlayContainerView(viewModel: viewModel)
 
-            // MARK: - Immersive mode: tap anywhere to restore UI
+            // MARK: - Immersive tap target
             if viewModel.visibility == .allHidden {
                 Color.clear
                     .contentShape(Rectangle())
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        viewModel.cycleVisibility()
-                    }
+                    .onTapGesture { viewModel.cycleVisibility() }
             }
 
-            // MARK: - Top Toast Alert
+            // MARK: - Toast
             if let toast = viewModel.toastMessage {
                 VStack {
-                    ToastView(message: toast)
-                        .padding(.top, 56)
+                    ToastView(message: toast).padding(.top, 56)
                     Spacer()
                 }
                 .allowsHitTesting(false)
             }
 
-            // MARK: - Chrome & Controls (hidden in immersive mode)
+            // MARK: - UI Chrome (hidden in immersive)
             if viewModel.isUIVisible {
                 VStack(spacing: 0) {
-                    // Top Navigation Bar
                     topNavigationBar
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
 
                     Spacer()
 
-                    // Floating Zoom, Lock, Filter, Undo/Redo Controls
                     floatingAuxiliaryPills
                         .padding(.horizontal, 20)
                         .padding(.bottom, 12)
 
-                    // Opacity Popup (Shown above toolbar when toggled)
                     if viewModel.showOpacitySlider {
                         OpacityPopupView(opacity: $viewModel.opacity) {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -83,7 +73,6 @@ public struct CameraTraceView: View {
                         .padding(.bottom, 10)
                     }
 
-                    // Bottom Floating Toolbar
                     bottomToolbar
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
@@ -92,21 +81,19 @@ public struct CameraTraceView: View {
         }
         .navigationBarHidden(true)
         .statusBarHidden(true)
-        .onAppear {
-            viewModel.onAppear()
-        }
-        .onDisappear {
-            viewModel.onDisappear()
-        }
-        // Sheets & Alerts
-        .sheet(isPresented: $viewModel.showInfoTips) {
-            InfoTipsSheet()
-        }
+        .onAppear { viewModel.onAppear() }
+        .onDisappear { viewModel.onDisappear() }
+        .sheet(isPresented: $viewModel.showInfoTips) { InfoTipsSheet() }
         .sheet(isPresented: $viewModel.showFilterSheet) {
             FilterPickerSheet(selectedFilter: $viewModel.selectedFilter) { _ in }
         }
         .sheet(isPresented: $viewModel.showFinishExport) {
             FinishExportSheet(viewModel: viewModel, onReturnHome: onReturnHome)
+        }
+        .sheet(isPresented: $viewModel.showRecropSheet) {
+            RecropSheetView(sourceImage: viewModel.sourceCroppedImage) { newImage in
+                viewModel.updateSourceImage(newImage)
+            }
         }
         .alert("Exit Tracing?", isPresented: $viewModel.showExitConfirmation) {
             Button("Keep Tracing", role: .cancel) {}
@@ -115,14 +102,13 @@ public struct CameraTraceView: View {
                 onReturnHome()
             }
         } message: {
-            Text("Your current alignment will be saved to Recent Projects so you can resume drawing at any time.")
+            Text("Your alignment and \(viewModel.formattedElapsed) of drawing time will be saved.")
         }
     }
 
     // MARK: - Top Navigation Bar
     private var topNavigationBar: some View {
         HStack {
-            // Close Button
             Button(action: {
                 HapticService.shared.impact(.light)
                 viewModel.showExitConfirmation = true
@@ -136,7 +122,7 @@ public struct CameraTraceView: View {
 
             Spacer()
 
-            // Center Pill: App brand + live session timer
+            // Brand + Timer
             HStack(spacing: 8) {
                 Image(systemName: "camera.viewfinder")
                     .font(.system(size: 14, weight: .semibold))
@@ -145,12 +131,8 @@ public struct CameraTraceView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
 
-                // Divider
-                Rectangle()
-                    .fill(Color.white.opacity(0.3))
-                    .frame(width: 1, height: 14)
+                Rectangle().fill(Color.white.opacity(0.3)).frame(width: 1, height: 14)
 
-                // Drawing Session Timer
                 Image(systemName: "clock")
                     .font(.system(size: 11))
                     .foregroundColor(.white.opacity(0.7))
@@ -164,28 +146,34 @@ public struct CameraTraceView: View {
 
             Spacer()
 
-            // Info & Finish Buttons
-            HStack(spacing: 10) {
+            // Re-crop, Info, Finish
+            HStack(spacing: 8) {
+                // Re-crop button
+                Button(action: {
+                    HapticService.shared.selection()
+                    viewModel.showRecropSheet = true
+                }) {
+                    Image(systemName: "crop")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white)
+                }
+
                 Button(action: {
                     HapticService.shared.selection()
                     viewModel.showInfoTips = true
                 }) {
                     Image(systemName: "questionmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 18))
                         .foregroundColor(.white)
                 }
 
                 Button(action: {
                     HapticService.shared.impact(.medium)
-                    Task {
-                        await viewModel.prepareFinish()
-                    }
+                    Task { await viewModel.prepareFinish() }
                 }) {
                     HStack(spacing: 5) {
-                        Image(systemName: "flag.fill")
-                            .font(.system(size: 13))
-                        Text("Finish")
-                            .font(.system(size: 13, weight: .bold))
+                        Image(systemName: "flag.fill").font(.system(size: 13))
+                        Text("Finish").font(.system(size: 13, weight: .bold))
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
@@ -196,15 +184,12 @@ public struct CameraTraceView: View {
         }
     }
 
-    // MARK: - Floating Auxiliary Pills (Zoom, Lock, Filter, Guides, Undo/Redo)
+    // MARK: - Floating Aux (Lock, Filter, Undo/Redo, Zoom)
     private var floatingAuxiliaryPills: some View {
         HStack {
-            // Lock + Filter + Guide Buttons (Left cluster)
             HStack(spacing: 8) {
-                // Lock Pill
-                Button(action: {
-                    viewModel.toggleLock()
-                }) {
+                // Lock (hides brackets when active)
+                Button(action: { viewModel.toggleLock() }) {
                     Image(systemName: viewModel.isLocked ? "lock.fill" : "lock.open")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(viewModel.isLocked ? Color(red: 0.54, green: 0.28, blue: 0.98) : .white)
@@ -213,7 +198,7 @@ public struct CameraTraceView: View {
                         .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
                 }
 
-                // Filter Toggle
+                // Filter
                 Button(action: {
                     HapticService.shared.selection()
                     viewModel.showFilterSheet = true
@@ -225,23 +210,11 @@ public struct CameraTraceView: View {
                         .background(Circle().fill(Color.black.opacity(0.65)))
                         .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
                 }
-
-                // Symmetry/Grid Guide (cycle through types — available in BOTH modes)
-                Button(action: {
-                    cycleGuideType()
-                }) {
-                    Image(systemName: viewModel.guideType.iconName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(viewModel.guideType != .none ? Color(red: 0.54, green: 0.28, blue: 0.98) : .white)
-                        .padding(11)
-                        .background(Circle().fill(Color.black.opacity(0.65)))
-                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
-                }
             }
 
             Spacer()
 
-            // Undo / Redo (shown when available)
+            // Undo/Redo
             if viewModel.canUndo || viewModel.canRedo {
                 HStack(spacing: 6) {
                     Button(action: { viewModel.undo() }) {
@@ -249,39 +222,32 @@ public struct CameraTraceView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(viewModel.canUndo ? .white : .white.opacity(0.3))
                             .padding(8)
-                    }
-                    .disabled(!viewModel.canUndo)
+                    }.disabled(!viewModel.canUndo)
 
                     Button(action: { viewModel.redo() }) {
                         Image(systemName: "arrow.uturn.forward")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(viewModel.canRedo ? .white : .white.opacity(0.3))
                             .padding(8)
-                    }
-                    .disabled(!viewModel.canRedo)
+                    }.disabled(!viewModel.canRedo)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(.horizontal, 4).padding(.vertical, 2)
                 .background(Capsule().fill(Color.black.opacity(0.65)))
                 .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1))
             }
 
-            // Camera Zoom Presets Pill (Right) — dynamically built from hardware
+            // Camera Zoom (hardware-mapped)
             if viewModel.mode == .camera {
                 HStack(spacing: 3) {
                     ForEach(viewModel.cameraService.zoomPresets) { preset in
-                        Button(action: {
-                            viewModel.selectZoomPreset(preset)
-                        }) {
+                        Button(action: { viewModel.selectZoomPreset(preset) }) {
                             Text(preset.label)
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(viewModel.cameraService.activePreset == preset ? .white : .white.opacity(0.55))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, 9).padding(.vertical, 6)
                                 .background(
                                     viewModel.cameraService.activePreset == preset ?
-                                    Capsule().fill(Color.white.opacity(0.25)) :
-                                    Capsule().fill(Color.clear)
+                                    Capsule().fill(Color.white.opacity(0.25)) : Capsule().fill(Color.clear)
                                 )
                         }
                     }
@@ -293,67 +259,36 @@ public struct CameraTraceView: View {
         }
     }
 
-    // MARK: - Bottom Floating Toolbar (5 buttons)
+    // MARK: - Bottom Toolbar
     private var bottomToolbar: some View {
         GlassCard(cornerRadius: 26, backgroundColor: Color(red: 0.10, green: 0.10, blue: 0.12).opacity(0.92)) {
             HStack(spacing: 0) {
-                // 1. Opacity
-                toolbarItem(
-                    icon: "circle.lefthalf.filled",
-                    title: "Opacity",
-                    isActive: viewModel.showOpacitySlider
-                ) {
+                toolbarItem(icon: "circle.lefthalf.filled", title: "Opacity", isActive: viewModel.showOpacitySlider) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         viewModel.showOpacitySlider.toggle()
                     }
                 }
 
-                // 2. Flip
-                toolbarItem(
-                    icon: "arrow.left.and.right.righttriangle.left.righttriangle.right",
-                    title: "Flip",
-                    isActive: viewModel.isFlipped
-                ) {
+                toolbarItem(icon: "arrow.left.and.right.righttriangle.left.righttriangle.right", title: "Flip", isActive: viewModel.isFlipped) {
                     viewModel.toggleFlip()
                 }
 
-                // 3. Flashlight (Camera mode) / Brightness indicator (Screen mode)
                 if viewModel.mode == .camera {
-                    toolbarItem(
-                        icon: viewModel.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill",
-                        title: "Flashlight",
-                        isActive: viewModel.isTorchOn
-                    ) {
+                    toolbarItem(icon: viewModel.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill", title: "Flashlight", isActive: viewModel.isTorchOn) {
                         viewModel.toggleTorch()
                     }
                 } else {
-                    toolbarItem(
-                        icon: "sun.max.fill",
-                        title: "Max Light",
-                        isActive: true
-                    ) {
-                        // Screen mode auto-maxes brightness on appear.
-                        // Tapping this confirms it and shows a toast.
+                    toolbarItem(icon: "sun.max.fill", title: "Max Light", isActive: true) {
                         UIScreen.main.brightness = 1.0
                         viewModel.showToast("Screen Brightness: Maximum")
                     }
                 }
 
-                // 4. Hide / Show — 3-state cycle
-                toolbarItem(
-                    icon: viewModel.visibility.hideButtonIcon,
-                    title: viewModel.visibility.hideButtonLabel,
-                    isActive: viewModel.visibility != .allVisible
-                ) {
+                toolbarItem(icon: viewModel.visibility.hideButtonIcon, title: viewModel.visibility.hideButtonLabel, isActive: viewModel.visibility != .allVisible) {
                     viewModel.cycleVisibility()
                 }
 
-                // 5. Reset
-                toolbarItem(
-                    icon: "arrow.counterclockwise",
-                    title: "Reset",
-                    isActive: false
-                ) {
+                toolbarItem(icon: "arrow.counterclockwise", title: "Reset", isActive: false) {
                     viewModel.resetTransform()
                 }
             }
@@ -362,12 +297,7 @@ public struct CameraTraceView: View {
         .frame(maxWidth: 440)
     }
 
-    private func toolbarItem(
-        icon: String,
-        title: String,
-        isActive: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
+    private func toolbarItem(icon: String, title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: {
             HapticService.shared.selection()
             action()
@@ -377,32 +307,108 @@ public struct CameraTraceView: View {
                     .font(.system(size: 20))
                     .foregroundColor(isActive ? Color(red: 0.54, green: 0.28, blue: 0.98) : .white)
                     .frame(height: 24)
-
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(isActive ? Color(red: 0.54, green: 0.28, blue: 0.98) : .white.opacity(0.85))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
         }
     }
+}
 
-    private func cycleGuideType() {
-        switch viewModel.guideType {
-        case .none:
-            viewModel.guideType = .ruleOfThirds
-            viewModel.showToast("Rule of Thirds Guide")
-        case .ruleOfThirds:
-            viewModel.guideType = .grid3x3
-            viewModel.showToast("Fine Grid Guide")
-        case .grid3x3:
-            viewModel.guideType = .crosshair
-            viewModel.showToast("Center Crosshair Guide")
-        case .crosshair:
-            viewModel.guideType = .none
-            viewModel.showToast("Guides Off")
+// MARK: - Re-crop Sheet
+
+/// Presents the current traced image in a crop interface for further trimming.
+struct RecropSheetView: View {
+    let sourceImage: UIImage
+    let onCropped: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var cropVM: CropViewModel
+
+    init(sourceImage: UIImage, onCropped: @escaping (UIImage) -> Void) {
+        self.sourceImage = sourceImage
+        self.onCropped = onCropped
+        _cropVM = StateObject(wrappedValue: CropViewModel(sourceImage: sourceImage))
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Toolbar
+                HStack {
+                    HStack(spacing: 12) {
+                        Button(action: { cropVM.undo() }) {
+                            Image(systemName: "arrow.uturn.backward").font(.system(size: 16, weight: .semibold))
+                        }.disabled(!cropVM.canUndo)
+                        Button(action: { cropVM.redo() }) {
+                            Image(systemName: "arrow.uturn.forward").font(.system(size: 16, weight: .semibold))
+                        }.disabled(!cropVM.canRedo)
+                    }.foregroundColor(.primary)
+
+                    Spacer()
+
+                    HStack(spacing: 16) {
+                        Button(action: { cropVM.rotate90() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "rotate.right")
+                                Text("Rotate").font(.system(size: 14, weight: .medium))
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color(.secondarySystemBackground))
+                            .clipShape(Capsule())
+                        }
+                        Button(action: { cropVM.reset() }) {
+                            Text("Reset").font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(red: 0.54, green: 0.28, blue: 0.98))
+                        }
+                    }
+                }
+                .padding(.horizontal, 20).padding(.vertical, 10)
+
+                // Crop Canvas
+                GeometryReader { geo in
+                    ZStack {
+                        Color.black.opacity(0.92)
+                        Image(uiImage: cropVM.sourceImage)
+                            .resizable().scaledToFit()
+                            .rotationEffect(.degrees(Double(cropVM.rotationDegrees)))
+                            .scaleEffect(cropVM.zoomScale)
+                            .frame(width: geo.size.width, height: geo.size.height)
+
+                        StableCropBoxView(
+                            cropRect: $cropVM.cropRect,
+                            containerSize: CGSize(width: geo.size.width, height: geo.size.height),
+                            onCommit: { cropVM.recordHistory() }
+                        )
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 16)
+
+                // Confirm
+                Button(action: {
+                    HapticService.shared.impact(.medium)
+                    let cropped = cropVM.produceCroppedImage()
+                    onCropped(cropped)
+                    dismiss()
+                }) {
+                    Text("Apply Re-crop")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity).frame(height: 54)
+                        .background(Color(red: 0.54, green: 0.28, blue: 0.98))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .padding(.horizontal, 20).padding(.vertical, 16)
+            }
+            .navigationTitle("Re-crop")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
-        HapticService.shared.selection()
     }
 }

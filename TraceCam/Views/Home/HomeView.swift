@@ -37,9 +37,14 @@ public struct HomeView: View {
                     .padding(.horizontal, 20)
 
                     // Recent Projects Row (Last 5 sessions)
-                    RecentProjectsView { project in
-                        viewModel.resumeProject(project)
-                    }
+                    RecentProjectsView(
+                        onSelect: { project in
+                            viewModel.resumeProject(project)
+                        },
+                        onRecrop: { project in
+                            viewModel.recropProject(project)
+                        }
+                    )
                     .padding(.top, 8)
 
                     Spacer(minLength: 30)
@@ -59,10 +64,13 @@ public struct HomeView: View {
             // Navigation destination for Cropping
             .navigationDestination(isPresented: $viewModel.shouldNavigateToCrop) {
                 if let picked = viewModel.pickedImage {
-                    CropView(originalImage: picked) {
-                        // Return home action
+                    CropView(
+                        originalImage: picked,
+                        existingProjectId: viewModel.resumedProject?.id
+                    ) {
                         viewModel.shouldNavigateToCrop = false
                         viewModel.pickedImage = nil
+                        viewModel.resumedProject = nil
                         navigationPath = NavigationPath()
                     }
                 }

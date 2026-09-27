@@ -67,6 +67,16 @@ public final class HomeViewModel: ObservableObject {
         self.resumedProject = project
     }
 
+    public func recropProject(_ project: ProjectItem) {
+        guard let image = historyStore.loadImage(for: project) else {
+            errorMessage = "Project reference image could not be found."
+            return
+        }
+        self.pickedImage = image
+        self.resumedProject = project
+        self.shouldNavigateToCrop = true
+    }
+
     public func deleteProject(_ project: ProjectItem) {
         historyStore.deleteProject(project)
     }

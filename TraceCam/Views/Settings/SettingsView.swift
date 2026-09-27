@@ -3,6 +3,7 @@ import SwiftUI
 /// Settings view for configuring defaults, haptics, and appearance.
 public struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var historyStore = ProjectHistoryStore.shared
     @Environment(\.dismiss) private var dismiss
 
     public var body: some View {
@@ -26,12 +27,6 @@ public struct SettingsView: View {
                         Text("1.0x (Standard)").tag(1.0)
                         Text("2.0x (Telephoto)").tag(2.0)
                     }
-
-                    Picker("Default Guide Overlay", selection: $settings.defaultGuideType) {
-                        ForEach(GuideOverlayType.allCases) { guide in
-                            Text(guide.displayName).tag(guide)
-                        }
-                    }
                 }
 
                 // Section: Interaction & Feedback
@@ -50,12 +45,48 @@ public struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
 
+                // Section: Drawing Stats
+                if !historyStore.recentProjects.isEmpty {
+                    Section(header: Text("Your Drawing Stats")) {
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(Color(red: 0.54, green: 0.28, blue: 0.98))
+                            Text("Total Drawing Time")
+                            Spacer()
+                            Text(historyStore.formattedTotalTime)
+                                .foregroundColor(.secondary)
+                                .fontWeight(.medium)
+                        }
+
+                        HStack {
+                            Image(systemName: "photo.stack")
+                                .foregroundColor(Color(red: 0.54, green: 0.28, blue: 0.98))
+                            Text("Projects")
+                            Spacer()
+                            Text("\(historyStore.recentProjects.count)")
+                                .foregroundColor(.secondary)
+                        }
+
+                        if let top = historyStore.mostUsedProject {
+                            HStack {
+                                Image(systemName: "crown.fill")
+                                    .foregroundColor(.yellow)
+                                Text("Most Drawn")
+                                Spacer()
+                                Text(top.formattedTimeSpent)
+                                    .foregroundColor(.secondary)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                    }
+                }
+
                 // Section: Privacy & About
                 Section(header: Text("About TraceCam")) {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text("1.0.0")
+                        Text("1.1.0")
                             .foregroundColor(.secondary)
                     }
 
@@ -74,10 +105,8 @@ public struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .tint(Color(red: 0.54, green: 0.28, blue: 0.98))
+                    Button("Done") { dismiss() }
+                        .tint(Color(red: 0.54, green: 0.28, blue: 0.98))
                 }
             }
         }
