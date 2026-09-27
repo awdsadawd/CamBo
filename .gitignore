@@ -1,0 +1,17 @@
+# Xcode
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.playground/
+DerivedData/
+build/
+*.ipa
+*.xcarchive
+
+# macOS
+.DS_Store
+
+# Temporary scripts
+generate_xcodeproj.py
+*.pyc
+__pycache__/

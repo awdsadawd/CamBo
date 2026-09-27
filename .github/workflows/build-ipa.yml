@@ -1,0 +1,96 @@
+name: Build TraceCam iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Build & Package iOS IPA
+    runs-on: macos-14 # Apple Silicon (M1/M2) runner for fast Xcode builds
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.4' # Stable Xcode 15.4 (iOS 17.5 SDK, backwards compatible with iOS 16+)
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-xcode-${{ hashFiles('TraceCam.xcodeproj/**') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-
+
+      # =========================================================================
+      # OPTIONAL: PAID APPLE DEVELOPER ACCOUNT CODE SIGNING
+      # -------------------------------------------------------------------------
+      # If you later obtain a paid Apple Developer account ($99/yr), you can:
+      # 1. Export your Apple Distribution / Development certificate as a .p12 file.
+      # 2. Base64 encode it: `certutil -encode cert.p12 cert_base64.txt` (on Windows).
+      # 3. Add GitHub Secrets:
+      #    - BUILD_CERTIFICATE_BASE64: base64 string of .p12
+      #    - P12_PASSWORD: password of .p12
+      #    - BUILD_PROVISION_PROFILE_BASE64: base64 string of .mobileprovision
+      #    - KEYCHAIN_PASSWORD: any temporary string
+      # 4. Uncomment the block below to install the certificate onto the runner:
+      #
+      # - name: Install Apple Certificate & Profile (Paid Account)
+      #   if: env.BUILD_CERTIFICATE_BASE64 != ''
+      #   env:
+      #     BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      #     P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      #     BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+      #     KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      #   run: |
+      #     CERT_PATH=$RUNNER_TEMP/build_cert.p12
+      #     PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+      #     KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+      #     echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
+      #     echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+      #     security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+      #     security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #     security import $CERT_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+      #     security list-keychain -d user -s $KEYCHAIN_PATH
+      #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+      #     cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+      # =========================================================================
+
+      - name: Build Archive (Unsigned for Sideloading / AltStore / Sideloadly)
+        run: |
+          echo "Starting xcodebuild archive..."
+          xcodebuild archive \
+            -project TraceCam.xcodeproj \
+            -scheme TraceCam \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/TraceCam.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Package .IPA file
+        run: |
+          echo "Packaging .app into .ipa (Payload structure)..."
+          mkdir -p build/ipa-package/Payload
+          cp -r "build/TraceCam.xcarchive/Products/Applications/TraceCam.app" "build/ipa-package/Payload/"
+          cd build/ipa-package
+          zip -r -9 ../TraceCam.ipa Payload
+          cd ../..
+          echo "Successfully created build/TraceCam.ipa"
+          ls -lh build/TraceCam.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TraceCam-iOS-IPA
+          path: build/TraceCam.ipa
+          if-no-files-found: error
+          retention-days: 14

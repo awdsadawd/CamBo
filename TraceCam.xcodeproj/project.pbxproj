@@ -1,0 +1,467 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0B2973A512A55C6A8E705FF9 /* TraceCamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643E6D5CCF5F512E8D8B24F2 /* TraceCamApp.swift */; };
+		2337839C25E0581E819256A6 /* DrawingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A86DC7158C9B514492E19602 /* DrawingMode.swift */; };
+		04AFC000E7AB56F782F1944B /* TraceFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF5EB302AD95018ACBE1BA5 /* TraceFilter.swift */; };
+		6A610958D2B05404B4189080 /* GuideOverlayType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72698B39DE11566DACDC6DDC /* GuideOverlayType.swift */; };
+		B98CBF804AB65C278C39D0F7 /* TraceOverlayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730EC652B70F5AE39688356A /* TraceOverlayState.swift */; };
+		722D760C94C151DD86012D00 /* ProjectItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C774E1550F0C5738BF3721F1 /* ProjectItem.swift */; };
+		6EE81AB533A8541F85E5E116 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82BDEF625B25BB8A1428862 /* HomeViewModel.swift */; };
+		BDDB9428666254A1ACE98BE0 /* CropViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E63D65EE45524DA9472F2F /* CropViewModel.swift */; };
+		5A147A81B00F59509A57A92B /* TraceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEE105075E15D6787206B12 /* TraceViewModel.swift */; };
+		572DEC75513C5AD8B9DCD356 /* ProjectHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8465FBCAEA9F568E880CD49B /* ProjectHistoryStore.swift */; };
+		8BEF5B1B30085B939E955D1C /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD4ADAC2CBA5AD8932DE69D /* AppSettings.swift */; };
+		36148DE8226452EA840F69D2 /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96552FAD17953A2B243ADA9 /* CameraService.swift */; };
+		1F87E5C9EE8759C988F85562 /* ImageFilterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75F3448AD05B528C8BE8DC0C /* ImageFilterService.swift */; };
+		F2ED82B2EE0D50F1B0F9CA58 /* HapticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D56904704B51A6B4222CBA /* HapticService.swift */; };
+		03FB003E84FA5DE381F310C5 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56D08D605CD5DA2ADB1A813 /* HomeView.swift */; };
+		CC46223B91B7529696EBD4C5 /* RecentProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04EEB3A79B25607980A3C02 /* RecentProjectsView.swift */; };
+		E9BA0F9FEAB25E47B8FAD24E /* CameraCapturePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC534361AEB85F67BFAE453C /* CameraCapturePickerView.swift */; };
+		82872E206B2E5DBF871E1F13 /* CropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2ED986FB697575CBE67953A /* CropView.swift */; };
+		232D20EF5DAB5470BC2B9BD3 /* ModePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70A51D6817F54A18522C872 /* ModePickerView.swift */; };
+		9571A96344B15EF99AAEA5F8 /* CameraTraceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728785AC6C7C513B8E94FA13 /* CameraTraceView.swift */; };
+		D2A953C6F3FA5ACCB7621CD8 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EB93C09EF15737B5D75F87 /* CameraPreviewView.swift */; };
+		3CA8A34AC60B5B07AFC3EEE2 /* TraceOverlayContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B2A5A079CD53B4864A34FE /* TraceOverlayContainerView.swift */; };
+		75FAF0F9413D5DFD995A0186 /* CornerBracketsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 213EDCE577B4592E86DED952 /* CornerBracketsView.swift */; };
+		39303D7F808257DF8220CDC4 /* GuideGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620F3AA71F8C57A8B89006CA /* GuideGridView.swift */; };
+		E9DBA3E2B4BC537AB90F880D /* OpacityPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03873818387C54B7BD559F72 /* OpacityPopupView.swift */; };
+		28F854B6DEF259EB90C207D1 /* FilterPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A0B915A20E954A6835E4709 /* FilterPickerSheet.swift */; };
+		836A0E6C06E856F98751B637 /* InfoTipsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F89C82FD1AC856DD81777CC0 /* InfoTipsSheet.swift */; };
+		8A25E5D5F09E59C0980B90D1 /* FinishExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEB4650377F5BAB8A4DC1FE /* FinishExportSheet.swift */; };
+		4D9A7589DEB6576B8E2FE2A8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAA5ABA3E17567EAD3BD2D7 /* SettingsView.swift */; };
+		D39B03E3879A5CB49B04159C /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C41FFE49A8538DAC3A670A /* GlassCard.swift */; };
+		C76BBC914B605F1999EBDD60 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E40C8585F01C59FA9DAD2E31 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		79CB03DD71945CD895D55B3B /* TraceCam.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TraceCam.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		643E6D5CCF5F512E8D8B24F2 /* TraceCamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceCamApp.swift; sourceTree = "<group>"; };
+		A86DC7158C9B514492E19602 /* DrawingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingMode.swift; sourceTree = "<group>"; };
+		EBF5EB302AD95018ACBE1BA5 /* TraceFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceFilter.swift; sourceTree = "<group>"; };
+		72698B39DE11566DACDC6DDC /* GuideOverlayType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideOverlayType.swift; sourceTree = "<group>"; };
+		730EC652B70F5AE39688356A /* TraceOverlayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceOverlayState.swift; sourceTree = "<group>"; };
+		C774E1550F0C5738BF3721F1 /* ProjectItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectItem.swift; sourceTree = "<group>"; };
+		D82BDEF625B25BB8A1428862 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		A7E63D65EE45524DA9472F2F /* CropViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropViewModel.swift; sourceTree = "<group>"; };
+		7AEE105075E15D6787206B12 /* TraceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceViewModel.swift; sourceTree = "<group>"; };
+		8465FBCAEA9F568E880CD49B /* ProjectHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectHistoryStore.swift; sourceTree = "<group>"; };
+		7CD4ADAC2CBA5AD8932DE69D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		A96552FAD17953A2B243ADA9 /* CameraService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
+		75F3448AD05B528C8BE8DC0C /* ImageFilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFilterService.swift; sourceTree = "<group>"; };
+		C7D56904704B51A6B4222CBA /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
+		E56D08D605CD5DA2ADB1A813 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A04EEB3A79B25607980A3C02 /* RecentProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentProjectsView.swift; sourceTree = "<group>"; };
+		DC534361AEB85F67BFAE453C /* CameraCapturePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapturePickerView.swift; sourceTree = "<group>"; };
+		B2ED986FB697575CBE67953A /* CropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropView.swift; sourceTree = "<group>"; };
+		A70A51D6817F54A18522C872 /* ModePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePickerView.swift; sourceTree = "<group>"; };
+		728785AC6C7C513B8E94FA13 /* CameraTraceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTraceView.swift; sourceTree = "<group>"; };
+		85EB93C09EF15737B5D75F87 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		B3B2A5A079CD53B4864A34FE /* TraceOverlayContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceOverlayContainerView.swift; sourceTree = "<group>"; };
+		213EDCE577B4592E86DED952 /* CornerBracketsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerBracketsView.swift; sourceTree = "<group>"; };
+		620F3AA71F8C57A8B89006CA /* GuideGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideGridView.swift; sourceTree = "<group>"; };
+		03873818387C54B7BD559F72 /* OpacityPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpacityPopupView.swift; sourceTree = "<group>"; };
+		3A0B915A20E954A6835E4709 /* FilterPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterPickerSheet.swift; sourceTree = "<group>"; };
+		F89C82FD1AC856DD81777CC0 /* InfoTipsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoTipsSheet.swift; sourceTree = "<group>"; };
+		0EEB4650377F5BAB8A4DC1FE /* FinishExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinishExportSheet.swift; sourceTree = "<group>"; };
+		3BAA5ABA3E17567EAD3BD2D7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C5C41FFE49A8538DAC3A670A /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		E40C8585F01C59FA9DAD2E31 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0AB1CB26E46654ED9BD1B38F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BD0E0077EF2C5014BE9FB769 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DD1586C2163655E082CB311E /* App */ = {
+			isa = PBXGroup;
+			children = (
+				643E6D5CCF5F512E8D8B24F2 /* TraceCamApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		443D193DBAEE514CB7A06273 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A86DC7158C9B514492E19602 /* DrawingMode.swift */,
+				EBF5EB302AD95018ACBE1BA5 /* TraceFilter.swift */,
+				72698B39DE11566DACDC6DDC /* GuideOverlayType.swift */,
+				730EC652B70F5AE39688356A /* TraceOverlayState.swift */,
+				C774E1550F0C5738BF3721F1 /* ProjectItem.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		4726EF635C7655A4924686E6 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				D82BDEF625B25BB8A1428862 /* HomeViewModel.swift */,
+				A7E63D65EE45524DA9472F2F /* CropViewModel.swift */,
+				7AEE105075E15D6787206B12 /* TraceViewModel.swift */,
+				8465FBCAEA9F568E880CD49B /* ProjectHistoryStore.swift */,
+				7CD4ADAC2CBA5AD8932DE69D /* AppSettings.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		ACAAA54176DA5772BC2ECBE2 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A96552FAD17953A2B243ADA9 /* CameraService.swift */,
+				75F3448AD05B528C8BE8DC0C /* ImageFilterService.swift */,
+				C7D56904704B51A6B4222CBA /* HapticService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		CC05DDDA6A7A5FFCB76DF1D5 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				E56D08D605CD5DA2ADB1A813 /* HomeView.swift */,
+				A04EEB3A79B25607980A3C02 /* RecentProjectsView.swift */,
+				DC534361AEB85F67BFAE453C /* CameraCapturePickerView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		4E142E28DBE65EA8984509AA /* Crop */ = {
+			isa = PBXGroup;
+			children = (
+				B2ED986FB697575CBE67953A /* CropView.swift */,
+			);
+			path = Crop;
+			sourceTree = "<group>";
+		};
+		D65BE24E12885A3E844AFDD8 /* ModePicker */ = {
+			isa = PBXGroup;
+			children = (
+				A70A51D6817F54A18522C872 /* ModePickerView.swift */,
+			);
+			path = ModePicker;
+			sourceTree = "<group>";
+		};
+		5BDF131231B85A23B5305597 /* Trace */ = {
+			isa = PBXGroup;
+			children = (
+				728785AC6C7C513B8E94FA13 /* CameraTraceView.swift */,
+				85EB93C09EF15737B5D75F87 /* CameraPreviewView.swift */,
+				B3B2A5A079CD53B4864A34FE /* TraceOverlayContainerView.swift */,
+				213EDCE577B4592E86DED952 /* CornerBracketsView.swift */,
+				620F3AA71F8C57A8B89006CA /* GuideGridView.swift */,
+				03873818387C54B7BD559F72 /* OpacityPopupView.swift */,
+				3A0B915A20E954A6835E4709 /* FilterPickerSheet.swift */,
+				F89C82FD1AC856DD81777CC0 /* InfoTipsSheet.swift */,
+				0EEB4650377F5BAB8A4DC1FE /* FinishExportSheet.swift */,
+			);
+			path = Trace;
+			sourceTree = "<group>";
+		};
+		60BC79CB25EE5AFD8CE0D62F /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				3BAA5ABA3E17567EAD3BD2D7 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		52D0B2B5255A544A8AEB62F2 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				C5C41FFE49A8538DAC3A670A /* GlassCard.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		351520376C45535DB1AB0F79 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				CC05DDDA6A7A5FFCB76DF1D5 /* Home */,
+				4E142E28DBE65EA8984509AA /* Crop */,
+				D65BE24E12885A3E844AFDD8 /* ModePicker */,
+				5BDF131231B85A23B5305597 /* Trace */,
+				60BC79CB25EE5AFD8CE0D62F /* Settings */,
+				52D0B2B5255A544A8AEB62F2 /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		34905674B0825BBEA898B908 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E40C8585F01C59FA9DAD2E31 /* Assets.xcassets */,
+				0AB1CB26E46654ED9BD1B38F /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		BC8AEC93D7CC57D1984555C5 /* TraceCam */ = {
+			isa = PBXGroup;
+			children = (
+				DD1586C2163655E082CB311E /* App */,
+				443D193DBAEE514CB7A06273 /* Models */,
+				4726EF635C7655A4924686E6 /* ViewModels */,
+				ACAAA54176DA5772BC2ECBE2 /* Services */,
+				351520376C45535DB1AB0F79 /* Views */,
+				34905674B0825BBEA898B908 /* Resources */,
+			);
+			path = TraceCam;
+			sourceTree = "<group>";
+		};
+		0E84A546CF32534893A04E02 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				79CB03DD71945CD895D55B3B /* TraceCam.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E8C40AA493785DFCA5A49A2B = {
+			isa = PBXGroup;
+			children = (
+				BC8AEC93D7CC57D1984555C5 /* TraceCam */,
+				0E84A546CF32534893A04E02 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7BCADA5FC87258BE90041748 /* TraceCam */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 839B891AC16050F29804F2B8 /* Build configuration list for PBXNativeTarget "TraceCam" */;
+			buildPhases = (
+				6E2CBD72686452B8A227AB61 /* Sources */,
+				BD0E0077EF2C5014BE9FB769 /* Frameworks */,
+				45BC0F2F2AAC5500821AC092 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TraceCam;
+			productName = TraceCam;
+			productReference = 79CB03DD71945CD895D55B3B /* TraceCam.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D6C0BA45E5645869AF7B7485 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					7BCADA5FC87258BE90041748 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+				};
+			};
+			buildConfigurationList = E0F27B6430D65F1EBA08B3CF /* Build configuration list for PBXProject "TraceCam" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E8C40AA493785DFCA5A49A2B;
+			productRefGroup = 0E84A546CF32534893A04E02 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7BCADA5FC87258BE90041748 /* TraceCam */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		45BC0F2F2AAC5500821AC092 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C76BBC914B605F1999EBDD60 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6E2CBD72686452B8A227AB61 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0B2973A512A55C6A8E705FF9 /* TraceCamApp.swift in Sources */,
+				2337839C25E0581E819256A6 /* DrawingMode.swift in Sources */,
+				04AFC000E7AB56F782F1944B /* TraceFilter.swift in Sources */,
+				6A610958D2B05404B4189080 /* GuideOverlayType.swift in Sources */,
+				B98CBF804AB65C278C39D0F7 /* TraceOverlayState.swift in Sources */,
+				722D760C94C151DD86012D00 /* ProjectItem.swift in Sources */,
+				6EE81AB533A8541F85E5E116 /* HomeViewModel.swift in Sources */,
+				BDDB9428666254A1ACE98BE0 /* CropViewModel.swift in Sources */,
+				5A147A81B00F59509A57A92B /* TraceViewModel.swift in Sources */,
+				572DEC75513C5AD8B9DCD356 /* ProjectHistoryStore.swift in Sources */,
+				8BEF5B1B30085B939E955D1C /* AppSettings.swift in Sources */,
+				36148DE8226452EA840F69D2 /* CameraService.swift in Sources */,
+				1F87E5C9EE8759C988F85562 /* ImageFilterService.swift in Sources */,
+				F2ED82B2EE0D50F1B0F9CA58 /* HapticService.swift in Sources */,
+				03FB003E84FA5DE381F310C5 /* HomeView.swift in Sources */,
+				CC46223B91B7529696EBD4C5 /* RecentProjectsView.swift in Sources */,
+				E9BA0F9FEAB25E47B8FAD24E /* CameraCapturePickerView.swift in Sources */,
+				82872E206B2E5DBF871E1F13 /* CropView.swift in Sources */,
+				232D20EF5DAB5470BC2B9BD3 /* ModePickerView.swift in Sources */,
+				9571A96344B15EF99AAEA5F8 /* CameraTraceView.swift in Sources */,
+				D2A953C6F3FA5ACCB7621CD8 /* CameraPreviewView.swift in Sources */,
+				3CA8A34AC60B5B07AFC3EEE2 /* TraceOverlayContainerView.swift in Sources */,
+				75FAF0F9413D5DFD995A0186 /* CornerBracketsView.swift in Sources */,
+				39303D7F808257DF8220CDC4 /* GuideGridView.swift in Sources */,
+				E9DBA3E2B4BC537AB90F880D /* OpacityPopupView.swift in Sources */,
+				28F854B6DEF259EB90C207D1 /* FilterPickerSheet.swift in Sources */,
+				836A0E6C06E856F98751B637 /* InfoTipsSheet.swift in Sources */,
+				8A25E5D5F09E59C0980B90D1 /* FinishExportSheet.swift in Sources */,
+				4D9A7589DEB6576B8E2FE2A8 /* SettingsView.swift in Sources */,
+				D39B03E3879A5CB49B04159C /* GlassCard.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E1616A3615E556489525658A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		4D092601A14357B7BB9A6BA0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = "wholemodule";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		51D4666A6382527193908A08 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TraceCam/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TraceCam;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tracecam.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AB2F920257C959CE92386812 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TraceCam/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TraceCam;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tracecam.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E0F27B6430D65F1EBA08B3CF /* Build configuration list for PBXProject "TraceCam" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E1616A3615E556489525658A /* Debug */,
+				4D092601A14357B7BB9A6BA0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		839B891AC16050F29804F2B8 /* Build configuration list for PBXNativeTarget "TraceCam" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				51D4666A6382527193908A08 /* Debug */,
+				AB2F920257C959CE92386812 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = D6C0BA45E5645869AF7B7485 /* Project object */;
+}
