@@ -77,18 +77,21 @@ public struct HomeView: View {
             }
             // Navigation destination for Resuming Recent Project directly
             .navigationDestination(isPresented: Binding(
-                get: { viewModel.resumedProject != nil },
+                get: { viewModel.resumedProject != nil && !viewModel.shouldNavigateToCrop },
                 set: { if !$0 { viewModel.resumedProject = nil } }
             )) {
                 if let project = viewModel.resumedProject,
-                   let image = viewModel.pickedImage {
+                   let cropped = viewModel.croppedImage {
                     CameraTraceView(
-                        image: image,
+                        image: cropped,
+                        originalImage: viewModel.pickedImage,
                         mode: project.mode,
                         initialState: project.overlayState,
                         existingProjectId: project.id,
                         onReturnHome: {
                             viewModel.resumedProject = nil
+                            viewModel.croppedImage = nil
+                            viewModel.pickedImage = nil
                             navigationPath = NavigationPath()
                         }
                     )
@@ -108,20 +111,13 @@ public struct HomeView: View {
     // MARK: - Header Bar
     private var headerBar: some View {
         HStack {
-            HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [Color(red: 0.65, green: 0.35, blue: 0.98), Color(red: 0.44, green: 0.20, blue: 0.88)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 38, height: 38)
-
-                    Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundColor(.white)
-                }
+            HStack(spacing: 12) {
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .shadow(color: Color(red: 0.54, green: 0.28, blue: 0.98).opacity(0.35), radius: 6, x: 0, y: 3)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("TraceCam")

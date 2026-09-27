@@ -13,7 +13,8 @@ public final class HomeViewModel: ObservableObject {
         }
     }
 
-    @Published public var pickedImage: UIImage? = nil
+    @Published public var pickedImage: UIImage? = nil      // Original uncropped image
+    @Published public var croppedImage: UIImage? = nil     // Cropped reference image for direct resume
     @Published public var showCameraCaptureSheet: Bool = false
     @Published public var showSettingsSheet: Bool = false
     @Published public var isProcessingImage: Bool = false
@@ -23,7 +24,7 @@ public final class HomeViewModel: ObservableObject {
     @Published public var shouldNavigateToCrop: Bool = false
     @Published public var resumedProject: ProjectItem? = nil
 
-    private let historyStore = ProjectHistoryStore.shared
+    public let historyStore = ProjectHistoryStore.shared
 
     public init() {}
 
@@ -35,9 +36,9 @@ public final class HomeViewModel: ObservableObject {
         do {
             if let data = try await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
-                // Normalize orientation
                 let normalizedImage = image.normalized()
                 self.pickedImage = normalizedImage
+                self.croppedImage = nil
                 self.resumedProject = nil
                 self.shouldNavigateToCrop = true
             } else {
@@ -54,31 +55,40 @@ public final class HomeViewModel: ObservableObject {
     public func handleCapturedPhoto(_ image: UIImage) {
         let normalized = image.normalized()
         self.pickedImage = normalized
+        self.croppedImage = nil
         self.resumedProject = nil
         self.shouldNavigateToCrop = true
     }
 
+    /// Resumes a project into CameraTraceView directly with its cropped image and full original image.
     public func resumeProject(_ project: ProjectItem) {
-        guard let image = historyStore.loadImage(for: project) else {
+        guard let cropped = historyStore.loadCroppedImage(for: project) else {
             errorMessage = "Project reference image could not be found."
             return
         }
-        self.pickedImage = image
+        self.croppedImage = cropped
+        self.pickedImage = historyStore.loadOriginalImage(for: project) ?? cropped
         self.resumedProject = project
     }
 
+    /// Loads the FULL original uncropped image for re-cropping.
     public func recropProject(_ project: ProjectItem) {
-        guard let image = historyStore.loadImage(for: project) else {
-            errorMessage = "Project reference image could not be found."
+        guard let original = historyStore.loadOriginalImage(for: project) else {
+            errorMessage = "Original photo could not be found."
             return
         }
-        self.pickedImage = image
+        self.pickedImage = original
+        self.croppedImage = nil
         self.resumedProject = project
         self.shouldNavigateToCrop = true
     }
 
     public func deleteProject(_ project: ProjectItem) {
         historyStore.deleteProject(project)
+    }
+
+    public func toggleFavorite(_ project: ProjectItem) {
+        historyStore.toggleFavorite(for: project)
     }
 }
 

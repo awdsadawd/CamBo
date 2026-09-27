@@ -67,6 +67,15 @@ public struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
 
+                        HStack {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.red)
+                            Text("Favorites")
+                            Spacer()
+                            Text("\(historyStore.favoriteProjects.count)")
+                                .foregroundColor(.secondary)
+                        }
+
                         if let top = historyStore.mostUsedProject {
                             HStack {
                                 Image(systemName: "crown.fill")
@@ -84,10 +93,24 @@ public struct SettingsView: View {
                 // Section: Privacy & About
                 Section(header: Text("About TraceCam")) {
                     HStack {
-                        Text("Version")
                         Spacer()
-                        Text("1.1.0")
-                            .foregroundColor(.secondary)
+                        VStack(spacing: 6) {
+                            Image("AppLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 68, height: 68)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .shadow(color: Color(red: 0.54, green: 0.28, blue: 0.98).opacity(0.3), radius: 8, x: 0, y: 4)
+
+                            Text("TraceCam")
+                                .font(.headline.bold())
+
+                            Text("Version 1.2.0")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                        Spacer()
                     }
 
                     HStack {

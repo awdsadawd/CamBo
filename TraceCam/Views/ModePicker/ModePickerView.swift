@@ -3,14 +3,21 @@ import SwiftUI
 /// Screen 3: Drawing Mode Picker offering exactly two modes (Camera Trace and Screen Trace).
 public struct ModePickerView: View {
     public let croppedImage: UIImage
+    public let originalImage: UIImage?
     public let existingProjectId: UUID?
     public let onReturnHome: () -> Void
 
     @State private var selectedMode: DrawingMode = .camera
     @State private var navigateToTrace: Bool = false
 
-    public init(croppedImage: UIImage, existingProjectId: UUID? = nil, onReturnHome: @escaping () -> Void) {
+    public init(
+        croppedImage: UIImage,
+        originalImage: UIImage? = nil,
+        existingProjectId: UUID? = nil,
+        onReturnHome: @escaping () -> Void
+    ) {
         self.croppedImage = croppedImage
+        self.originalImage = originalImage
         self.existingProjectId = existingProjectId
         self.onReturnHome = onReturnHome
     }
@@ -65,6 +72,7 @@ public struct ModePickerView: View {
         .navigationDestination(isPresented: $navigateToTrace) {
             CameraTraceView(
                 image: croppedImage,
+                originalImage: originalImage,
                 mode: selectedMode,
                 existingProjectId: existingProjectId,
                 onReturnHome: onReturnHome

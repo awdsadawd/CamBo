@@ -9,13 +9,18 @@ public struct CameraTraceView: View {
 
     public init(
         image: UIImage,
+        originalImage: UIImage? = nil,
         mode: DrawingMode = .camera,
         initialState: TraceOverlayState? = nil,
         existingProjectId: UUID? = nil,
         onReturnHome: @escaping () -> Void
     ) {
         _viewModel = StateObject(wrappedValue: TraceViewModel(
-            image: image, mode: mode, initialState: initialState, existingProjectId: existingProjectId
+            image: image,
+            originalImage: originalImage,
+            mode: mode,
+            initialState: initialState,
+            existingProjectId: existingProjectId
         ))
         self.onReturnHome = onReturnHome
     }
@@ -91,7 +96,7 @@ public struct CameraTraceView: View {
             FinishExportSheet(viewModel: viewModel, onReturnHome: onReturnHome)
         }
         .sheet(isPresented: $viewModel.showRecropSheet) {
-            RecropSheetView(sourceImage: viewModel.sourceCroppedImage) { newImage in
+            RecropSheetView(sourceImage: viewModel.originalUncroppedImage) { newImage in
                 viewModel.updateSourceImage(newImage)
             }
         }
@@ -124,9 +129,11 @@ public struct CameraTraceView: View {
 
             // Brand + Timer
             HStack(spacing: 8) {
-                Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.65, green: 0.42, blue: 1.0))
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 Text("TraceCam")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)

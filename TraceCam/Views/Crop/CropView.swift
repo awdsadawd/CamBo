@@ -129,6 +129,7 @@ public struct CropView: View {
             if let cropped = croppedImageResult {
                 ModePickerView(
                     croppedImage: cropped,
+                    originalImage: originalImage,
                     existingProjectId: existingProjectId,
                     onReturnHome: onReturnHome
                 )

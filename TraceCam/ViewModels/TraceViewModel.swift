@@ -52,6 +52,7 @@ public struct TraceStateSnapshot: Equatable {
 /// Core ViewModel managing the tracing overlay, camera controls, filters, gestures, and composite export.
 @MainActor
 public final class TraceViewModel: ObservableObject {
+    public let originalUncroppedImage: UIImage
     @Published public var sourceCroppedImage: UIImage
     public let mode: DrawingMode
     public var existingProjectId: UUID?
@@ -114,11 +115,13 @@ public final class TraceViewModel: ObservableObject {
 
     public init(
         image: UIImage,
+        originalImage: UIImage? = nil,
         mode: DrawingMode = .camera,
         initialState: TraceOverlayState? = nil,
         existingProjectId: UUID? = nil
     ) {
         self.sourceCroppedImage = image
+        self.originalUncroppedImage = originalImage ?? image
         self.displayFilteredImage = image
         self.mode = mode
         self.existingProjectId = existingProjectId
@@ -288,6 +291,7 @@ public final class TraceViewModel: ObservableObject {
     public func updateSourceImage(_ newImage: UIImage) {
         sourceCroppedImage = newImage
         updateFilteredImage()
+        autoSaveToRecent()
         HapticService.shared.notification(.success)
         showToast("Image Re-cropped ✂️")
     }
@@ -315,7 +319,8 @@ public final class TraceViewModel: ObservableObject {
         )
 
         _ = historyStore.saveProject(
-            image: sourceCroppedImage,
+            croppedImage: sourceCroppedImage,
+            originalImage: originalUncroppedImage,
             mode: mode,
             overlayState: currentState,
             existingId: existingProjectId,

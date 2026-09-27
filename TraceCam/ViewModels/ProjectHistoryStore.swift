@@ -1,7 +1,8 @@
 import Foundation
 import UIKit
+import Combine
 
-/// Manages persistence of recent trace projects (up to 5) on-device.
+/// Manages persistence of recent trace projects (up to 5) on-device, with favorites and original image storage.
 public final class ProjectHistoryStore: ObservableObject {
     public static let shared = ProjectHistoryStore()
 
@@ -40,41 +41,52 @@ public final class ProjectHistoryStore: ObservableObject {
         try? data.write(to: fileURL, options: .atomic)
     }
 
-    /// Saves or updates a project session with its image and thumbnail.
-    /// When updating an existing project (existingId != nil), preserves original createdAt
-    /// and accumulates totalTimeSpent.
+    /// Saves or updates a project session with both the cropped reference and the uncropped original.
     @discardableResult
     public func saveProject(
-        image: UIImage,
+        croppedImage: UIImage,
+        originalImage: UIImage? = nil,
         mode: DrawingMode,
         overlayState: TraceOverlayState,
         existingId: UUID? = nil,
         sessionDuration: TimeInterval = 0
     ) -> ProjectItem? {
         let projectId = existingId ?? UUID()
-        let imageFileName = "\(projectId.uuidString)_image.png"
+        let croppedFileName = "\(projectId.uuidString)_cropped.png"
+        let originalFileName = "\(projectId.uuidString)_original.png"
         let thumbFileName = "\(projectId.uuidString)_thumb.png"
 
-        let imageURL = storageDirectory.appendingPathComponent(imageFileName)
+        let croppedURL = storageDirectory.appendingPathComponent(croppedFileName)
+        let originalURL = storageDirectory.appendingPathComponent(originalFileName)
         let thumbURL = storageDirectory.appendingPathComponent(thumbFileName)
 
-        // Generate thumbnail
-        let thumbnail = createThumbnail(from: image, targetSize: CGSize(width: 200, height: 200))
+        // Save cropped image
+        guard let croppedData = croppedImage.pngData() else { return nil }
+        try? croppedData.write(to: croppedURL, options: .atomic)
 
-        guard let imageData = image.pngData(),
-              let thumbData = thumbnail.pngData() else {
-            return nil
+        // Save original uncropped image if provided (or preserve existing)
+        let uncroppedToSave = originalImage ?? croppedImage
+        if let originalData = uncroppedToSave.pngData() {
+            // Only write original if file does not exist yet or new original is passed
+            if !fileManager.fileExists(atPath: originalURL.path) || originalImage != nil {
+                try? originalData.write(to: originalURL, options: .atomic)
+            }
         }
 
-        try? imageData.write(to: imageURL, options: .atomic)
-        try? thumbData.write(to: thumbURL, options: .atomic)
+        // Generate thumbnail from cropped reference
+        let thumbnail = createThumbnail(from: croppedImage, targetSize: CGSize(width: 200, height: 200))
+        if let thumbData = thumbnail.pngData() {
+            try? thumbData.write(to: thumbURL, options: .atomic)
+        }
 
-        // Preserve original creation date and accumulate time when updating existing project
+        // Preserve original creation date, accumulated time, and favorite status when updating
         var originalCreatedAt = Date()
         var accumulatedTime: TimeInterval = 0
+        var isFavorite = false
         if let existingProject = recentProjects.first(where: { $0.id == projectId }) {
             originalCreatedAt = existingProject.createdAt
             accumulatedTime = existingProject.totalTimeSpent
+            isFavorite = existingProject.isFavorite
         }
 
         let item = ProjectItem(
@@ -82,13 +94,15 @@ public final class ProjectHistoryStore: ObservableObject {
             createdAt: originalCreatedAt,
             lastModifiedAt: Date(),
             mode: mode,
-            imageFileName: imageFileName,
+            imageFileName: croppedFileName,
+            originalImageFileName: originalFileName,
             thumbnailFileName: thumbFileName,
             overlayState: overlayState,
-            totalTimeSpent: accumulatedTime + sessionDuration
+            totalTimeSpent: accumulatedTime + sessionDuration,
+            isFavorite: isFavorite
         )
 
-        // Remove existing entry with same ID (we're replacing it)
+        // Remove existing entry with same ID (replacing in-place)
         recentProjects.removeAll(where: { $0.id == projectId })
         recentProjects.insert(item, at: 0)
 
@@ -102,10 +116,41 @@ public final class ProjectHistoryStore: ObservableObject {
         return item
     }
 
-    public func loadImage(for project: ProjectItem) -> UIImage? {
+    /// Toggles the favorite status for a project and saves.
+    public func toggleFavorite(for project: ProjectItem) {
+        if let index = recentProjects.firstIndex(where: { $0.id == project.id }) {
+            recentProjects[index].isFavorite.toggle()
+            saveHistory()
+        }
+    }
+
+    /// Filtered list of favorite projects.
+    public var favoriteProjects: [ProjectItem] {
+        recentProjects.filter { $0.isFavorite }
+    }
+
+    /// Loads the cropped image used in the tracing overlay.
+    public func loadCroppedImage(for project: ProjectItem) -> UIImage? {
         let fileURL = storageDirectory.appendingPathComponent(project.imageFileName)
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        return UIImage(data: data)
+        if let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
+            return img
+        }
+        return nil
+    }
+
+    /// Loads the full original uncropped image for re-cropping.
+    public func loadOriginalImage(for project: ProjectItem) -> UIImage? {
+        let origURL = storageDirectory.appendingPathComponent(project.originalImageFileName)
+        if let data = try? Data(contentsOf: origURL), let img = UIImage(data: data) {
+            return img
+        }
+        // Fallback to cropped if original not found
+        return loadCroppedImage(for: project)
+    }
+
+    // Backwards-compatible loadImage
+    public func loadImage(for project: ProjectItem) -> UIImage? {
+        loadCroppedImage(for: project)
     }
 
     public func loadThumbnail(for project: ProjectItem) -> UIImage? {
@@ -129,7 +174,7 @@ public final class ProjectHistoryStore: ObservableObject {
         saveHistory()
     }
 
-    /// Returns the project with the most accumulated drawing time, or nil if empty.
+    /// Returns the project with the most accumulated drawing time.
     public var mostUsedProject: ProjectItem? {
         recentProjects.max(by: { $0.totalTimeSpent < $1.totalTimeSpent })
     }
@@ -155,9 +200,11 @@ public final class ProjectHistoryStore: ObservableObject {
     }
 
     private func deleteProjectFiles(for project: ProjectItem) {
-        let imgURL = storageDirectory.appendingPathComponent(project.imageFileName)
+        let croppedURL = storageDirectory.appendingPathComponent(project.imageFileName)
+        let origURL = storageDirectory.appendingPathComponent(project.originalImageFileName)
         let thumbURL = storageDirectory.appendingPathComponent(project.thumbnailFileName)
-        try? fileManager.removeItem(at: imgURL)
+        try? fileManager.removeItem(at: croppedURL)
+        try? fileManager.removeItem(at: origURL)
         try? fileManager.removeItem(at: thumbURL)
     }
 
