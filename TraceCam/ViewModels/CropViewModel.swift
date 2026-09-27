@@ -17,6 +17,8 @@ public final class CropViewModel: ObservableObject {
     @Published public var rotationDegrees: Int = 0 // 0, 90, 180, 270
     @Published public var zoomScale: CGFloat = 1.0
 
+    @Published public var currentRotatedImage: UIImage
+
     // History for Undo / Redo
     private var undoStack: [CropStateSnapshot] = []
     private var redoStack: [CropStateSnapshot] = []
@@ -26,12 +28,14 @@ public final class CropViewModel: ObservableObject {
 
     public init(sourceImage: UIImage) {
         self.sourceImage = sourceImage
+        self.currentRotatedImage = sourceImage
         saveSnapshot()
     }
 
     public func rotate90() {
         recordHistory()
         rotationDegrees = (rotationDegrees + 90) % 360
+        currentRotatedImage = rotatedImage(sourceImage, byDegrees: rotationDegrees)
         HapticService.shared.impact(.light)
     }
 
@@ -40,6 +44,7 @@ public final class CropViewModel: ObservableObject {
         cropRect = CGRect(x: 0.05, y: 0.05, width: 0.9, height: 0.9)
         rotationDegrees = 0
         zoomScale = 1.0
+        currentRotatedImage = sourceImage
         HapticService.shared.impact(.medium)
     }
 
@@ -71,6 +76,7 @@ public final class CropViewModel: ObservableObject {
     private func applySnapshot(_ snapshot: CropStateSnapshot) {
         self.cropRect = snapshot.cropRect
         self.rotationDegrees = snapshot.rotationDegrees
+        self.currentRotatedImage = rotatedImage(sourceImage, byDegrees: rotationDegrees)
     }
 
     private func saveSnapshot() {
@@ -86,10 +92,7 @@ public final class CropViewModel: ObservableObject {
 
     /// Trims the source image to the cropped boundary, applying rotation.
     public func produceCroppedImage() -> UIImage {
-        // Step 1: Rotate image if necessary
-        let rotated = rotatedImage(sourceImage, byDegrees: rotationDegrees)
-
-        // Step 2: Crop to normalized rect
+        let rotated = currentRotatedImage
         let imageSize = rotated.size
         let cropPixelRect = CGRect(
             x: cropRect.origin.x * imageSize.width,

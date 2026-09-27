@@ -3,16 +3,16 @@ import AVFoundation
 import UIKit
 import Combine
 
-/// Represents a user-facing zoom preset with its actual hardware zoom factor.
+/// Represents a user-facing zoom preset pointing to a physical camera lens.
 public struct CameraZoomPreset: Identifiable, Equatable, Hashable {
     public let id: String
     public let label: String
-    public let deviceFactor: CGFloat
+    public let deviceId: String
 
-    public init(label: String, deviceFactor: CGFloat) {
+    public init(label: String, deviceId: String) {
         self.id = label
         self.label = label
-        self.deviceFactor = deviceFactor
+        self.deviceId = deviceId
     }
 }
 
@@ -26,10 +26,8 @@ public final class CameraService: NSObject, ObservableObject {
     @Published public var hasCameraPermissionDenied: Bool = false
 
     /// Available zoom presets mapped to actual device hardware lens factors.
-    @Published public var zoomPresets: [CameraZoomPreset] = [
-        CameraZoomPreset(label: "1.0x", deviceFactor: 1.0)
-    ]
-    @Published public var activePreset: CameraZoomPreset = CameraZoomPreset(label: "1.0x", deviceFactor: 1.0)
+    @Published public var zoomPresets: [CameraZoomPreset] = []
+    @Published public var activePreset: CameraZoomPreset? = nil
 
     public let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
@@ -80,29 +78,19 @@ public final class CameraService: NSObject, ObservableObject {
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
 
-            // Discover best multi-lens device for proper optical zoom switching.
-            // Priority: triple > dual wide > wide only
-            let deviceTypes: [AVCaptureDevice.DeviceType] = [
-                .builtInTripleCamera,
-                .builtInDualWideCamera,
-                .builtInDualCamera,
-                .builtInWideAngleCamera
-            ]
-            let discovery = AVCaptureDevice.DiscoverySession(
-                deviceTypes: deviceTypes,
-                mediaType: .video,
-                position: .back
-            )
-
-            guard let device = discovery.devices.first
-                    ?? AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            // Build zoom presets from PHYSICAL devices to ensure 100% optical clarity
+            let presets = self.buildZoomPresets()
+            
+            guard let defaultPreset = presets.first(where: { $0.label == "1.0x" }) ?? presets.first,
+                  let initialDevice = AVCaptureDevice(uniqueID: defaultPreset.deviceId) else {
                 self.session.commitConfiguration()
                 return
             }
-            self.videoDevice = device
+
+            self.videoDevice = initialDevice
 
             do {
-                let input = try AVCaptureDeviceInput(device: device)
+                let input = try AVCaptureDeviceInput(device: initialDevice)
                 if self.session.canAddInput(input) {
                     self.session.addInput(input)
                     self.videoDeviceInput = input
@@ -114,24 +102,9 @@ public final class CameraService: NSObject, ObservableObject {
 
                 self.session.commitConfiguration()
 
-                // Build zoom presets from the virtual device's actual switchover points.
-                let presets = self.buildZoomPresets(for: device)
-
                 DispatchQueue.main.async {
                     self.zoomPresets = presets
-                    // Default to the "1.0x" preset (standard wide lens)
-                    if let defaultPreset = presets.first(where: { $0.label == "1.0x" }) {
-                        self.activePreset = defaultPreset
-                    } else if let first = presets.first {
-                        self.activePreset = first
-                    }
-                }
-
-                // Apply the default 1x zoom on session start
-                if let defaultPreset = presets.first(where: { $0.label == "1.0x" }) {
-                    try device.lockForConfiguration()
-                    device.videoZoomFactor = defaultPreset.deviceFactor
-                    device.unlockForConfiguration()
+                    self.activePreset = defaultPreset
                 }
 
                 self.startSession()
@@ -142,57 +115,33 @@ public final class CameraService: NSObject, ObservableObject {
         }
     }
 
-    /// Maps virtual device lens switchover points to user-facing 0.5x / 1.0x / 2.0x labels.
-    ///
-    /// For iPhone 11 (builtInDualWideCamera):
-    ///   - virtualDeviceSwitchOverVideoZoomFactors = [2.0]
-    ///   - device factor 1.0 = ultra-wide lens (13mm) → UI label "0.5x"
-    ///   - device factor 2.0 = wide lens (26mm)       → UI label "1.0x"
-    ///   - device factor 4.0 = 2x digital on wide     → UI label "2.0x"
-    ///
-    /// For iPhone 11 Pro (builtInTripleCamera):
-    ///   - switchOvers = [2.0, 6.0]
-    ///   - device factor 1.0  = ultra-wide → "0.5x"
-    ///   - device factor 2.0  = wide       → "1.0x"
-    ///   - device factor 6.0  = telephoto  → "3.0x"
-    ///
-    /// For single-lens iPhones (builtInWideAngleCamera):
-    ///   - No switchovers
-    ///   - device factor 1.0 = wide → "1.0x"
-    ///   - device factor 2.0 = 2x digital → "2.0x"
-    private func buildZoomPresets(for device: AVCaptureDevice) -> [CameraZoomPreset] {
-        let switchOvers = device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat(truncating: $0) }
-        let maxZoom = min(device.maxAvailableVideoZoomFactor, 10.0)
-
-        if switchOvers.isEmpty {
-            // Single-lens camera — no optical zoom, just digital
-            var presets = [CameraZoomPreset(label: "1.0x", deviceFactor: 1.0)]
-            if maxZoom >= 2.0 {
-                presets.append(CameraZoomPreset(label: "2.0x", deviceFactor: 2.0))
+    /// Discovers physical rear cameras and creates 0.5x, 1.0x, 2.0x presets
+    private func buildZoomPresets() -> [CameraZoomPreset] {
+        var presets: [CameraZoomPreset] = []
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTelephotoCamera],
+            mediaType: .video,
+            position: .back
+        )
+        
+        for device in discovery.devices {
+            if device.deviceType == .builtInUltraWideCamera {
+                presets.append(CameraZoomPreset(label: "0.5x", deviceId: device.uniqueID))
+            } else if device.deviceType == .builtInWideAngleCamera {
+                presets.append(CameraZoomPreset(label: "1.0x", deviceId: device.uniqueID))
+            } else if device.deviceType == .builtInTelephotoCamera {
+                presets.append(CameraZoomPreset(label: "2.0x", deviceId: device.uniqueID))
             }
-            return presets
-        } else if switchOvers.count == 1 {
-            // Dual camera (e.g., iPhone 11 dual wide: ultra-wide + wide)
-            let wideAt = switchOvers[0] // typically 2.0
-            var presets = [
-                CameraZoomPreset(label: "0.5x", deviceFactor: 1.0),           // ultra-wide
-                CameraZoomPreset(label: "1.0x", deviceFactor: wideAt),         // wide (optical switch)
-            ]
-            if maxZoom >= wideAt * 2.0 {
-                presets.append(CameraZoomPreset(label: "2.0x", deviceFactor: wideAt * 2.0)) // 2x digital on wide
-            }
-            return presets
-        } else {
-            // Triple camera (e.g., iPhone 11 Pro, 12 Pro, 13 Pro, etc.)
-            let wideAt = switchOvers[0]  // typically 2.0
-            let teleAt = switchOvers[1]  // varies (6.0 on 11 Pro, 3.0 on newer)
-            let teleLabel = String(format: "%.0fx", teleAt / wideAt) // "3x" or "2x" depending
-            return [
-                CameraZoomPreset(label: "0.5x", deviceFactor: 1.0),
-                CameraZoomPreset(label: "1.0x", deviceFactor: wideAt),
-                CameraZoomPreset(label: "\(teleLabel)", deviceFactor: teleAt),
-            ]
         }
+        
+        presets.sort { $0.label < $1.label }
+
+        if presets.isEmpty {
+            if let wide = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+                presets.append(CameraZoomPreset(label: "1.0x", deviceId: wide.uniqueID))
+            }
+        }
+        return presets
     }
 
     public func startSession() {
@@ -220,22 +169,33 @@ public final class CameraService: NSObject, ObservableObject {
         }
     }
 
-    /// Sets the camera zoom to a specific preset's device factor, triggering actual lens switches.
+    /// Switches the AV session to use a different physical camera lens.
     public func applyZoomPreset(_ preset: CameraZoomPreset) {
         sessionQueue.async { [weak self] in
-            guard let self = self, let device = self.videoDevice else { return }
+            guard let self = self else { return }
+            guard let newDevice = AVCaptureDevice(uniqueID: preset.deviceId) else { return }
+            
+            self.session.beginConfiguration()
+            
+            if let currentInput = self.videoDeviceInput {
+                self.session.removeInput(currentInput)
+            }
+            
             do {
-                try device.lockForConfiguration()
-                let clampedZoom = max(device.minAvailableVideoZoomFactor,
-                                     min(preset.deviceFactor, device.maxAvailableVideoZoomFactor))
-                device.videoZoomFactor = clampedZoom
-                device.unlockForConfiguration()
-
-                DispatchQueue.main.async {
-                    self.activePreset = preset
+                let newInput = try AVCaptureDeviceInput(device: newDevice)
+                if self.session.canAddInput(newInput) {
+                    self.session.addInput(newInput)
+                    self.videoDeviceInput = newInput
+                    self.videoDevice = newDevice
                 }
             } catch {
-                print("TraceCam: Failed to set camera zoom: \(error)")
+                print("TraceCam: Failed to switch physical camera lens: \(error)")
+            }
+            
+            self.session.commitConfiguration()
+
+            DispatchQueue.main.async {
+                self.activePreset = preset
             }
         }
     }

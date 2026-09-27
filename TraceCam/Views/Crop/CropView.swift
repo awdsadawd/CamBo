@@ -73,32 +73,42 @@ public struct CropView: View {
                 let canvasWidth = geo.size.width
                 let canvasHeight = geo.size.height
 
+                // Calculate the exact size of the fitted image to prevent crop distortion
+                let imageSize = viewModel.currentRotatedImage.size
+                let aspect = imageSize.width / max(imageSize.height, 1)
+                let geoAspect = canvasWidth / max(canvasHeight, 1)
+
+                let fitWidth = aspect > geoAspect ? canvasWidth : canvasHeight * aspect
+                let fitHeight = aspect > geoAspect ? canvasWidth / aspect : canvasHeight
+
                 ZStack {
                     Color.black.opacity(0.92)
 
-                    // Source Image (Rotated & Zoomed)
-                    Image(uiImage: viewModel.sourceImage)
-                        .resizable()
-                        .scaledToFit()
-                        .rotationEffect(.degrees(Double(viewModel.rotationDegrees)))
-                        .scaleEffect(viewModel.zoomScale)
-                        .frame(width: canvasWidth, height: canvasHeight)
-                        .gesture(
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    viewModel.zoomScale = max(0.5, min(value, 4.0))
-                                }
+                    ZStack {
+                        // Source Image (Pre-Rotated)
+                        Image(uiImage: viewModel.currentRotatedImage)
+                            .resizable()
+                            .scaledToFit()
+                        
+                        // 4-Corner Draggable Crop Overlay tightly bound to image
+                        StableCropBoxView(
+                            cropRect: $viewModel.cropRect,
+                            containerSize: CGSize(width: fitWidth, height: fitHeight),
+                            onCommit: {
+                                viewModel.recordHistory()
+                            }
                         )
-
-                    // 4-Corner Draggable Crop Overlay — FIXED gestures
-                    StableCropBoxView(
-                        cropRect: $viewModel.cropRect,
-                        containerSize: CGSize(width: canvasWidth, height: canvasHeight),
-                        onCommit: {
-                            viewModel.recordHistory()
-                        }
+                    }
+                    .frame(width: fitWidth, height: fitHeight)
+                    .scaleEffect(viewModel.zoomScale)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                viewModel.zoomScale = max(0.5, min(value, 4.0))
+                            }
                     )
                 }
+                .frame(width: canvasWidth, height: canvasHeight)
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .padding(.horizontal, 16)
@@ -185,7 +195,7 @@ struct StableCropBoxView: View {
                 .position(x: pixelRect.midX, y: pixelRect.midY)
                 .contentShape(Rectangle())
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 0, coordinateSpace: .named("cropSpace"))
                         .onChanged { value in
                             // Capture initial rect on first frame of this gesture
                             if boxDragStart == nil {
@@ -217,6 +227,7 @@ struct StableCropBoxView: View {
             cornerHandle(position: CGPoint(x: pixelRect.minX, y: pixelRect.maxY), type: .bottomLeft)
             cornerHandle(position: CGPoint(x: pixelRect.maxX, y: pixelRect.maxY), type: .bottomRight)
         }
+        .coordinateSpace(name: "cropSpace")
     }
 
     enum CornerType { case topLeft, topRight, bottomLeft, bottomRight }
@@ -231,7 +242,7 @@ struct StableCropBoxView: View {
             .shadow(color: Color.black.opacity(0.3), radius: 4)
             .position(position)
             .gesture(
-                DragGesture()
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("cropSpace"))
                     .onChanged { value in
                         // Capture initial rect on first frame
                         if cornerDragStart == nil {
