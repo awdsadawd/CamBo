@@ -143,12 +143,12 @@ public struct HomeView: View {
         }
     }
 
-    // MARK: - Gallery Upload Card (Reference style)
+    // MARK: - Gallery Upload Card (Adaptive Dark/Light Mode Theme)
     private var galleryUploadCard: some View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color(red: 0.54, green: 0.28, blue: 0.98).opacity(0.12))
+                    .fill(Color(red: 0.54, green: 0.28, blue: 0.98).opacity(0.16))
                     .frame(width: 54, height: 54)
 
                 Image(systemName: "photo.on.rectangle.angled")
@@ -176,35 +176,41 @@ public struct HomeView: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(red: 0.95, green: 0.93, blue: 1.0))
+                .fill(
+                    Color(uiColor: UIColor { traits in
+                        traits.userInterfaceStyle == .dark
+                            ? UIColor(red: 0.15, green: 0.12, blue: 0.22, alpha: 1.0)
+                            : UIColor(red: 0.95, green: 0.93, blue: 1.0, alpha: 1.0)
+                    })
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color(red: 0.54, green: 0.28, blue: 0.98).opacity(0.2), lineWidth: 1)
+                .stroke(Color(red: 0.54, green: 0.28, blue: 0.98).opacity(0.28), lineWidth: 1)
         )
     }
 
-    // MARK: - Take Photo Card
+    // MARK: - Take Photo Card (Viewfinder Cyan Theme)
     private var takePhotoCard: some View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.orange.opacity(0.12))
+                    .fill(Color(red: 0.0, green: 0.78, blue: 0.88).opacity(0.16))
                     .frame(width: 54, height: 54)
 
-                Image(systemName: "camera.fill")
+                Image(systemName: "camera.viewfinder")
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.orange)
+                    .foregroundColor(Color(red: 0.0, green: 0.78, blue: 0.88))
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Take Photo")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(red: 0.0, green: 0.78, blue: 0.88))
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(red: 0.0, green: 0.78, blue: 0.88))
                 }
 
                 Text("Snap a fresh reference with camera")
@@ -217,11 +223,17 @@ public struct HomeView: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(
+                    Color(uiColor: UIColor { traits in
+                        traits.userInterfaceStyle == .dark
+                            ? UIColor(red: 0.11, green: 0.15, blue: 0.18, alpha: 1.0)
+                            : UIColor(red: 0.93, green: 0.97, blue: 0.99, alpha: 1.0)
+                    })
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color(.separator).opacity(0.4), lineWidth: 1)
+                .stroke(Color(red: 0.0, green: 0.78, blue: 0.88).opacity(0.28), lineWidth: 1)
         )
     }
 }

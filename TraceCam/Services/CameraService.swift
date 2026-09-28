@@ -31,11 +31,25 @@ public final class CameraService: NSObject, ObservableObject {
 
     public let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
+    private let movieFileOutput = AVCaptureMovieFileOutput()
     private var videoDeviceInput: AVCaptureDeviceInput?
     private var videoDevice: AVCaptureDevice?
     private let sessionQueue = DispatchQueue(label: "com.tracecam.camera.sessionQueue")
 
     private var photoContinuation: CheckedContinuation<UIImage?, Never>?
+    private var videoRecordingCompletion: ((URL?) -> Void)?
+    private var recordingTimer: Timer?
+
+    // Camera Video Recording (Clean camera only, no UI/overlay)
+    @Published public var isRecordingVideo: Bool = false
+    @Published public var recordingDuration: TimeInterval = 0
+    @Published public var recordedVideoURL: URL? = nil
+
+    public var formattedRecordingDuration: String {
+        let minutes = Int(recordingDuration) / 60
+        let seconds = Int(recordingDuration) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
 
     override private init() {
         super.init()
@@ -76,7 +90,8 @@ public final class CameraService: NSObject, ObservableObject {
             if self.session.isRunning { return }
 
             self.session.beginConfiguration()
-            self.session.sessionPreset = .photo
+            // .high supports both photo capture and movie recording simultaneously
+            self.session.sessionPreset = .high
 
             // Build zoom presets from PHYSICAL devices to ensure 100% optical clarity
             let presets = self.buildZoomPresets()
@@ -98,6 +113,10 @@ public final class CameraService: NSObject, ObservableObject {
 
                 if self.session.canAddOutput(self.photoOutput) {
                     self.session.addOutput(self.photoOutput)
+                }
+
+                if self.session.canAddOutput(self.movieFileOutput) {
+                    self.session.addOutput(self.movieFileOutput)
                 }
 
                 self.session.commitConfiguration()
@@ -157,6 +176,9 @@ public final class CameraService: NSObject, ObservableObject {
     }
 
     public func stopSession() {
+        if self.movieFileOutput.isRecording {
+            self.stopRecordingVideo(completion: nil)
+        }
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             if self.session.isRunning {
@@ -228,6 +250,67 @@ public final class CameraService: NSObject, ObservableObject {
             }
         }
     }
+
+    // MARK: - Video Recording (Pure Camera Feed, No UI/Overlay)
+
+    public func startRecordingVideo() {
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            guard self.session.isRunning else { return }
+            guard !self.movieFileOutput.isRecording else { return }
+
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "tracecam_timelapse_\(Int(Date().timeIntervalSince1970)).mov"
+            let outputURL = tempDir.appendingPathComponent(fileName)
+
+            try? FileManager.default.removeItem(at: outputURL)
+
+            if let connection = self.movieFileOutput.connection(with: .video) {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+            }
+
+            self.movieFileOutput.startRecording(to: outputURL, recordingDelegate: self)
+
+            DispatchQueue.main.async {
+                self.isRecordingVideo = true
+                self.recordingDuration = 0
+                self.startRecordingTimer()
+            }
+        }
+    }
+
+    public func stopRecordingVideo(completion: ((URL?) -> Void)? = nil) {
+        sessionQueue.async { [weak self] in
+            guard let self = self else {
+                completion?(nil)
+                return
+            }
+            guard self.movieFileOutput.isRecording else {
+                DispatchQueue.main.async {
+                    completion?(self.recordedVideoURL)
+                }
+                return
+            }
+
+            self.videoRecordingCompletion = completion
+            self.movieFileOutput.stopRecording()
+        }
+    }
+
+    private func startRecordingTimer() {
+        stopRecordingTimer()
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.recordingDuration += 1
+        }
+    }
+
+    private func stopRecordingTimer() {
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+    }
 }
 
 extension CameraService: AVCapturePhotoCaptureDelegate {
@@ -248,5 +331,32 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
 
         photoContinuation?.resume(returning: image)
         photoContinuation = nil
+    }
+}
+
+extension CameraService: AVCaptureFileOutputRecordingDelegate {
+    public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        DispatchQueue.main.async {
+            self.isRecordingVideo = false
+            self.stopRecordingTimer()
+
+            let completion = self.videoRecordingCompletion
+            self.videoRecordingCompletion = nil
+
+            if let error = error {
+                let nsError = error as NSError
+                let success = nsError.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? false
+                if success {
+                    self.recordedVideoURL = outputFileURL
+                    completion?(outputFileURL)
+                } else {
+                    print("TraceCam: Recording error: \(error.localizedDescription)")
+                    completion?(nil)
+                }
+            } else {
+                self.recordedVideoURL = outputFileURL
+                completion?(outputFileURL)
+            }
+        }
     }
 }

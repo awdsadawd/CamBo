@@ -100,6 +100,12 @@ public final class TraceViewModel: ObservableObject {
     @Published public var compositeImage: UIImage? = nil
     @Published public var isSavingPhoto: Bool = false
 
+    // Video Recording state (pure camera feed)
+    @Published public var recordedVideoURL: URL? = nil
+
+    public var isRecordingVideo: Bool { cameraService.isRecordingVideo }
+    public var formattedRecordingElapsed: String { cameraService.formattedRecordingDuration }
+
     // Screen mode brightness
     private var previousBrightness: CGFloat = 0.5
 
@@ -173,6 +179,9 @@ public final class TraceViewModel: ObservableObject {
         stopSessionTimer()
 
         if mode == .camera {
+            if cameraService.isRecordingVideo {
+                cameraService.stopRecordingVideo(completion: nil)
+            }
             cameraService.stopSession()
         } else {
             UIScreen.main.brightness = previousBrightness
@@ -271,8 +280,27 @@ public final class TraceViewModel: ObservableObject {
     }
 
     public func selectZoomPreset(_ preset: CameraZoomPreset) {
+        if isRecordingVideo {
+            showToast("Stop recording to switch lenses")
+            return
+        }
         cameraService.applyZoomPreset(preset)
         HapticService.shared.selection()
+    }
+
+    public func toggleRecording() {
+        if cameraService.isRecordingVideo {
+            cameraService.stopRecordingVideo { [weak self] url in
+                guard let self = self else { return }
+                self.recordedVideoURL = url
+                self.showToast("Timelapse Saved 🎬")
+            }
+            HapticService.shared.impact(.heavy)
+        } else {
+            cameraService.startRecordingVideo()
+            HapticService.shared.impact(.medium)
+            showToast("🔴 Recording Camera Feed...")
+        }
     }
 
     public func resetTransform() {
@@ -334,6 +362,18 @@ public final class TraceViewModel: ObservableObject {
         isSavingPhoto = true
         autoSaveToRecent()
 
+        // If recording video, stop and wait for completion
+        if cameraService.isRecordingVideo {
+            await withCheckedContinuation { continuation in
+                cameraService.stopRecordingVideo { [weak self] url in
+                    self?.recordedVideoURL = url
+                    continuation.resume()
+                }
+            }
+        } else if recordedVideoURL == nil {
+            recordedVideoURL = cameraService.recordedVideoURL
+        }
+
         var bg: UIImage? = nil
         if mode == .camera { bg = await cameraService.capturePhoto() }
 
@@ -380,6 +420,27 @@ public final class TraceViewModel: ObservableObject {
                 UIImageWriteToSavedPhotosAlbum(composite, nil, nil, nil)
                 HapticService.shared.notification(.success)
                 continuation.resume(returning: true)
+            }
+        }
+    }
+
+    public func saveVideoToPhotos(url: URL) async -> Bool {
+        await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+                guard status == .authorized || status == .limited else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                PHPhotoLibrary.shared().performChanges({
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                }) { success, error in
+                    if success {
+                        DispatchQueue.main.async {
+                            HapticService.shared.notification(.success)
+                        }
+                    }
+                    continuation.resume(returning: success)
+                }
             }
         }
     }

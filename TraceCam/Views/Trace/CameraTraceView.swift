@@ -157,25 +157,46 @@ public struct CameraTraceView: View {
 
             Spacer()
 
-            // Re-crop, Info, Finish
+            // REC Timelapse, Re-crop, Finish
             HStack(spacing: 8) {
+                // Timelapse Record Button (Camera mode only)
+                if viewModel.mode == .camera {
+                    Button(action: { viewModel.toggleRecording() }) {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                            if viewModel.isRecordingVideo {
+                                Text(viewModel.formattedRecordingElapsed)
+                                    .font(.system(size: 11, weight: .bold).monospacedDigit())
+                                    .foregroundColor(.white)
+                            } else {
+                                Text("REC")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(viewModel.isRecordingVideo ? Color.red.opacity(0.35) : Color.black.opacity(0.45))
+                        )
+                        .overlay(
+                            Capsule().stroke(viewModel.isRecordingVideo ? Color.red : Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                }
+
                 // Re-crop button
                 Button(action: {
                     HapticService.shared.selection()
                     viewModel.showRecropSheet = true
                 }) {
                     Image(systemName: "crop")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                }
-
-                Button(action: {
-                    HapticService.shared.selection()
-                    viewModel.showInfoTips = true
-                }) {
-                    Image(systemName: "questionmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Circle().fill(Color.black.opacity(0.45)))
                 }
 
                 Button(action: {
@@ -183,7 +204,7 @@ public struct CameraTraceView: View {
                     Task { await viewModel.prepareFinish() }
                 }) {
                     HStack(spacing: 5) {
-                        Image(systemName: "flag.fill").font(.system(size: 13))
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 13))
                         Text("Finish").font(.system(size: 13, weight: .bold))
                     }
                     .foregroundColor(.white)
@@ -379,20 +400,45 @@ struct RecropSheetView: View {
 
                 // Crop Canvas
                 GeometryReader { geo in
+                    let canvasWidth = geo.size.width
+                    let canvasHeight = geo.size.height
+
+                    // Calculate the exact size of the fitted image to prevent crop distortion
+                    let imageSize = cropVM.currentRotatedImage.size
+                    let aspect = imageSize.width / max(imageSize.height, 1)
+                    let geoAspect = canvasWidth / max(canvasHeight, 1)
+
+                    let fitWidth = aspect > geoAspect ? canvasWidth : canvasHeight * aspect
+                    let fitHeight = aspect > geoAspect ? canvasWidth / aspect : canvasHeight
+
                     ZStack {
                         Color.black.opacity(0.92)
-                        Image(uiImage: cropVM.sourceImage)
-                            .resizable().scaledToFit()
-                            .rotationEffect(.degrees(Double(cropVM.rotationDegrees)))
-                            .scaleEffect(cropVM.zoomScale)
-                            .frame(width: geo.size.width, height: geo.size.height)
 
-                        StableCropBoxView(
-                            cropRect: $cropVM.cropRect,
-                            containerSize: CGSize(width: geo.size.width, height: geo.size.height),
-                            onCommit: { cropVM.recordHistory() }
+                        ZStack {
+                            // Source Image (Pre-Rotated)
+                            Image(uiImage: cropVM.currentRotatedImage)
+                                .resizable()
+                                .scaledToFit()
+
+                            // 4-Corner Draggable Crop Overlay tightly bound to image
+                            StableCropBoxView(
+                                cropRect: $cropVM.cropRect,
+                                containerSize: CGSize(width: fitWidth, height: fitHeight),
+                                onCommit: {
+                                    cropVM.recordHistory()
+                                }
+                            )
+                        }
+                        .frame(width: fitWidth, height: fitHeight)
+                        .scaleEffect(cropVM.zoomScale)
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    cropVM.zoomScale = max(0.5, min(value, 4.0))
+                                }
                         )
                     }
+                    .frame(width: canvasWidth, height: canvasHeight)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.horizontal, 16)
