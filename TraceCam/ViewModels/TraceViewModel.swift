@@ -6,11 +6,11 @@ import UIKit
 /// Controls overlay visibility in a 3-state cycle:
 ///  1. allVisible — photo overlay + UI all shown (brackets depend on lock)
 ///  2. photoHidden — reference image hidden so you can see your drawing, toolbar still visible
-///  3. allHidden — fully immersive camera view, no toolbar, no overlay. Tap anywhere to restore.
+///  3. uiHidden — immersive tracing: top/bottom UI hidden, photo REMAINS VISIBLE! Tap anywhere to restore.
 public enum OverlayVisibility: Int, CaseIterable {
     case allVisible = 0
     case photoHidden = 1
-    case allHidden = 2
+    case uiHidden = 2
 
     public var next: OverlayVisibility {
         let nextRaw = (self.rawValue + 1) % OverlayVisibility.allCases.count
@@ -22,8 +22,8 @@ public enum OverlayVisibility: Int, CaseIterable {
         case .allVisible:
             return "eye.slash"
         case .photoHidden:
-            return "eye.slash.circle"
-        case .allHidden:
+            return "rectangle.dashed"
+        case .uiHidden:
             return "eye"
         }
     }
@@ -33,8 +33,8 @@ public enum OverlayVisibility: Int, CaseIterable {
         case .allVisible:
             return "Hide Photo"
         case .photoHidden:
-            return "Hide All"
-        case .allHidden:
+            return "Hide UI"
+        case .uiHidden:
             return "Show All"
         }
     }
@@ -70,8 +70,8 @@ public final class TraceViewModel: ObservableObject {
     // 3-state visibility
     @Published public var visibility: OverlayVisibility = .allVisible
 
-    public var isOverlayVisible: Bool { visibility == .allVisible }
-    public var isUIVisible: Bool { visibility != .allHidden }
+    public var isOverlayVisible: Bool { visibility == .allVisible || visibility == .uiHidden }
+    public var isUIVisible: Bool { visibility != .uiHidden }
 
     // Filter
     @Published public var selectedFilter: TraceFilter = .original {
@@ -253,14 +253,14 @@ public final class TraceViewModel: ObservableObject {
         HapticService.shared.impact(.light)
     }
 
-    /// Cycle: allVisible → photoHidden → allHidden → allVisible
+    /// Cycle: allVisible → photoHidden → uiHidden (photo visible, UI hidden) → allVisible
     public func cycleVisibility() {
         withAnimation(.easeInOut(duration: 0.2)) { visibility = visibility.next }
         HapticService.shared.impact(.light)
         switch visibility {
-        case .allVisible: showToast("Everything Visible")
+        case .allVisible: showToast("Controls Restored")
         case .photoHidden: showToast("Photo Hidden — Check Your Drawing")
-        case .allHidden: showToast("Immersive Mode — Tap to Restore")
+        case .uiHidden: showToast("UI Hidden — Tap Screen to Restore")
         }
     }
 
@@ -352,7 +352,7 @@ public final class TraceViewModel: ObservableObject {
                 UIColor.white.setFill()
                 ctx.fill(CGRect(origin: .zero, size: targetSize))
             }
-            if visibility == .allVisible && opacity > 0.01 {
+            if isOverlayVisible && opacity > 0.01 {
                 let context = ctx.cgContext
                 context.saveGState()
                 let center = CGPoint(x: targetSize.width / 2 + offset.width, y: targetSize.height / 2 + offset.height)

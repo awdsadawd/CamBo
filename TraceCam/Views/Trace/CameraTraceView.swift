@@ -38,12 +38,16 @@ public struct CameraTraceView: View {
             // MARK: - Overlay
             TraceOverlayContainerView(viewModel: viewModel)
 
-            // MARK: - Immersive tap target
-            if viewModel.visibility == .allHidden {
+            // MARK: - Immersive tap target (Tap anywhere to restore UI)
+            if !viewModel.isUIVisible {
                 Color.clear
                     .contentShape(Rectangle())
                     .ignoresSafeArea()
-                    .onTapGesture { viewModel.cycleVisibility() }
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.cycleVisibility()
+                        }
+                    }
             }
 
             // MARK: - Toast

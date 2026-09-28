@@ -20,18 +20,18 @@ public struct TraceOverlayContainerView: View {
             let baseHeight = baseWidth * aspect
 
             ZStack {
-                // Visible ONLY in .allVisible state
-                if viewModel.visibility == .allVisible {
+                // Visible in both .allVisible AND .uiHidden (user request: photo stays visible while UI is hidden)
+                if viewModel.isOverlayVisible {
                     ZStack {
-                        // The reference image — always visible when unlocked OR locked
+                        // The reference image — always visible when in allVisible or uiHidden
                         Image(uiImage: viewModel.displayFilteredImage)
                             .resizable()
                             .scaledToFit()
                             .scaleEffect(x: viewModel.isFlipped ? -1 : 1, y: 1)
                             .opacity(viewModel.opacity)
 
-                        // Purple Corner Brackets — HIDDEN when locked (user's request)
-                        if !viewModel.isLocked {
+                        // Purple Corner Brackets — HIDDEN when locked OR when UI is hidden
+                        if !viewModel.isLocked && viewModel.isUIVisible {
                             CornerBracketsView(cornerLength: 32, lineWidth: 4.5)
                         }
                     }
@@ -42,9 +42,9 @@ public struct TraceOverlayContainerView: View {
                         x: viewModel.offset.width + dragOffset.width,
                         y: viewModel.offset.height + dragOffset.height
                     )
-                    // Gestures disabled when locked
+                    // Gestures disabled when locked OR when UI is hidden (allows click-anywhere to restore controls)
                     .gesture(
-                        viewModel.isLocked ? nil : makeCombinedGestures()
+                        (viewModel.isLocked || !viewModel.isUIVisible) ? nil : makeCombinedGestures()
                     )
                     .transition(.opacity)
                 }
