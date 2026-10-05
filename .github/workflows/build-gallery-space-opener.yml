@@ -30,6 +30,7 @@ jobs:
       - name: Build Archive (Unsigned for Sideloading / AltStore / Sideloadly)
         run: |
           echo "Starting xcodebuild archive for GallerySpaceOpener..."
+          set -o pipefail
           xcodebuild archive \
             -project GallerySpaceOpener.xcodeproj \
             -scheme GallerySpaceOpener \
@@ -39,7 +40,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            COMPILER_INDEX_STORE_ENABLE=NO
+            COMPILER_INDEX_STORE_ENABLE=NO 2>&1 | tee xcodebuild.log
+
+      - name: Upload Build Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GallerySpaceOpener-build-log
+          path: xcodebuild.log
 
       - name: Package .IPA file
         run: |

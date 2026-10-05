@@ -3,7 +3,7 @@ import Photos
 import UIKit
 
 /// Represents a photo or video asset with cached file size, metadata, and deletion state.
-public final class MediaItem: Identifiable, ObservableObject, Hashable {
+public final class MediaItem: Identifiable, ObservableObject, Hashable, @unchecked Sendable {
     public let id: String
     public let asset: PHAsset
     public let fileSizeBytes: Int64

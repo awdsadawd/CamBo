@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Sorting modes for photos and videos in the gallery.
-public enum MediaSortOption: String, CaseIterable, Identifiable {
+public enum MediaSortOption: String, CaseIterable, Identifiable, Sendable {
     case sizeDesc = "Biggest First"
     case sizeAsc = "Smallest First"
     case dateDesc = "Newest First"

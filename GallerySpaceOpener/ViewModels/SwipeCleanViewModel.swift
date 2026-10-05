@@ -2,9 +2,20 @@ import SwiftUI
 import Photos
 import Combine
 
-public enum SwipeAction {
+public enum SwipeAction: Equatable, Sendable {
     case delete // Swiped Right
     case keep   // Swiped Left
+}
+
+public struct SwipeHistoryItem: Identifiable, Equatable, Sendable {
+    public var id: String { item.id }
+    public let item: MediaItem
+    public let action: SwipeAction
+
+    public init(item: MediaItem, action: SwipeAction) {
+        self.item = item
+        self.action = action
+    }
 }
 
 /// ViewModel powering the Tinder-like card swiper for rapidly cleaning gallery storage.
@@ -13,7 +24,7 @@ public final class SwipeCleanViewModel: ObservableObject {
     @Published public var deckItems: [MediaItem] = []
     @Published public var swipedDeletedItems: [MediaItem] = []
     @Published public var swipedKeptItems: [MediaItem] = []
-    @Published public var undoHistory: [(item: MediaItem, action: SwipeAction)] = []
+    @Published public var undoHistory: [SwipeHistoryItem] = []
 
     @Published public var isPreparingDeck: Bool = false
     @Published public var showReviewScreen: Bool = false
@@ -84,12 +95,13 @@ public final class SwipeCleanViewModel: ObservableObject {
             cardRotation = Angle(degrees: 15)
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
-            guard let self = self, !self.deckItems.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !self.deckItems.isEmpty else { return }
             let popped = self.deckItems.removeFirst()
             popped.isMarkedForDeletion = true
             self.swipedDeletedItems.append(popped)
-            self.undoHistory.append((item: popped, action: .delete))
+            self.undoHistory.append(SwipeHistoryItem(item: popped, action: .delete))
             self.resetCardOffset()
 
             if self.deckItems.isEmpty {
@@ -111,12 +123,13 @@ public final class SwipeCleanViewModel: ObservableObject {
             cardRotation = Angle(degrees: -15)
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
-            guard let self = self, !self.deckItems.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !self.deckItems.isEmpty else { return }
             let popped = self.deckItems.removeFirst()
             popped.isMarkedForDeletion = false
             self.swipedKeptItems.append(popped)
-            self.undoHistory.append((item: popped, action: .keep))
+            self.undoHistory.append(SwipeHistoryItem(item: popped, action: .keep))
             self.resetCardOffset()
 
             if self.deckItems.isEmpty {

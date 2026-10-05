@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Filters for the media library grid and swipe cleaner.
-public enum MediaFilterType: String, CaseIterable, Identifiable {
+public enum MediaFilterType: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case photos = "Photos"
     case videos = "Videos"

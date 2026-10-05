@@ -4,7 +4,7 @@ import UIKit
 import AVFoundation
 
 /// Central manager for accessing the iOS Photo Library, fetching media assets with file sizes, and performing batch deletions.
-public final class PhotoLibraryManager: NSObject, ObservableObject {
+public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked Sendable {
     public static let shared = PhotoLibraryManager()
 
     @Published public var authorizationStatus: PHAuthorizationStatus = .notDetermined
@@ -138,10 +138,12 @@ public final class PhotoLibraryManager: NSObject, ObservableObject {
         var totalSize: Int64 = 0
 
         for resource in resources {
-            if let unsignedSize = resource.value(forKey: "fileSize") as? CLong {
-                totalSize += Int64(unsignedSize)
-            } else if let num = resource.value(forKey: "fileSize") as? NSNumber {
+            if let num = resource.value(forKey: "fileSize") as? NSNumber {
                 totalSize += num.int64Value
+            } else if let intVal = resource.value(forKey: "fileSize") as? Int64 {
+                totalSize += intVal
+            } else if let intVal = resource.value(forKey: "fileSize") as? Int {
+                totalSize += Int64(intVal)
             }
         }
 
@@ -226,11 +228,13 @@ public final class PhotoLibraryManager: NSObject, ObservableObject {
             PHPhotoLibrary.shared().performChanges({
                 PHAssetChangeRequest.deleteAssets(assetsToDelete as NSArray)
             }) { success, error in
-                if success {
-                    HapticManager.shared.deletionSuccess()
-                    continuation.resume(returning: .success(items.count))
-                } else {
-                    continuation.resume(returning: .failure(error ?? NSError(domain: "GallerySpaceOpener", code: -1, userInfo: [NSLocalizedDescriptionKey: "Deletion was cancelled or failed."])))
+                DispatchQueue.main.async {
+                    if success {
+                        HapticManager.shared.deletionSuccess()
+                        continuation.resume(returning: .success(items.count))
+                    } else {
+                        continuation.resume(returning: .failure(error ?? NSError(domain: "GallerySpaceOpener", code: -1, userInfo: [NSLocalizedDescriptionKey: "Deletion was cancelled or failed."])))
+                    }
                 }
             }
         }
