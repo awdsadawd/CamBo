@@ -60,10 +60,14 @@ public struct GalleryExplorerView: View {
                             .padding(.bottom, 24)
                         }
                         .refreshable {
-                            await viewModel.reloadMedia()
+                            await viewModel.reloadMedia(forceRefresh: true)
                         }
                     }
                 }
+            }
+            .onAppear {
+                // Re-sync from cache (cheap) so deletions made in Tinder mode are reflected
+                Task { await viewModel.reloadMedia() }
             }
             .navigationTitle("Storage Explorer")
             .navigationBarTitleDisplayMode(.inline)

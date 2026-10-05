@@ -4,6 +4,10 @@ import UIKit
 import AVFoundation
 
 /// Central manager for accessing the iOS Photo Library, fetching media assets with file sizes, and performing batch deletions.
+///
+/// The full library is scanned ONCE and cached. Filters (Photos / Videos / Screenshots / Large) are applied
+/// in-memory on top of that cache, which makes filter switches instant and eliminates race conditions where
+/// a slow scan could overwrite the results of a newer filter selection.
 public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked Sendable {
     public static let shared = PhotoLibraryManager()
 
@@ -13,6 +17,10 @@ public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked S
     @Published public var loadProgress: Double = 0.0
 
     public let imageManager = PHCachingImageManager()
+
+    // Cache (only touched on the main actor)
+    private var cachedItems: [MediaItem]? = nil
+    private var loadTask: Task<[MediaItem], Never>? = nil
 
     override private init() {
         super.init()
@@ -36,86 +44,105 @@ public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked S
         return (status == .authorized || status == .limited)
     }
 
-    /// Fetches all media items according to filter and calculates their actual disk file sizes.
-    public func fetchMediaItems(
-        filter: MediaFilterType = .all,
-        sort: MediaSortOption = .sizeDesc
-    ) async -> [MediaItem] {
+    // MARK: - Library Scan & Cache
+
+    /// Returns every photo & video in the library (with file sizes). Scans once, then serves from cache.
+    /// Concurrent callers share the same in-flight scan.
+    @MainActor
+    public func loadAllItems(forceRefresh: Bool = false) async -> [MediaItem] {
         guard isAuthorized else { return [] }
 
-        await MainActor.run {
-            self.isLoading = true
-            self.loadProgress = 0.0
+        if !forceRefresh, let cached = cachedItems {
+            return cached
+        }
+        if let running = loadTask {
+            return await running.value
         }
 
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
+        isLoading = true
+        loadProgress = 0.0
 
-        // Apply predicate according to filter
+        let task = Task.detached(priority: .userInitiated) { () -> [MediaItem] in
+            return PhotoLibraryManager.scanLibrary { progress in
+                DispatchQueue.main.async {
+                    PhotoLibraryManager.shared.loadProgress = progress
+                }
+            }
+        }
+        loadTask = task
+        let items = await task.value
+
+        cachedItems = items
+        loadTask = nil
+        isLoading = false
+        loadProgress = 1.0
+        return items
+    }
+
+    /// Fetches media items matching the filter, sorted by the given option.
+    @MainActor
+    public func fetchMediaItems(
+        filter: MediaFilterType = .all,
+        sort: MediaSortOption = .sizeDesc,
+        forceRefresh: Bool = false
+    ) async -> [MediaItem] {
+        let all = await loadAllItems(forceRefresh: forceRefresh)
+        let filtered = Self.apply(filter: filter, to: all)
+        return sortItems(filtered, by: sort)
+    }
+
+    /// Removes deleted items from the cache so every screen stays in sync without a full rescan.
+    @MainActor
+    public func removeFromCache(ids: Set<String>) {
+        guard !ids.isEmpty, let cached = cachedItems else { return }
+        cachedItems = cached.filter { !ids.contains($0.id) }
+    }
+
+    /// Strict in-memory filtering based on the asset's real media type.
+    public static func apply(filter: MediaFilterType, to items: [MediaItem]) -> [MediaItem] {
         switch filter {
         case .all:
-            fetchOptions.predicate = NSPredicate(
-                format: "mediaType == %d OR mediaType == %d",
-                PHAssetMediaType.image.rawValue,
-                PHAssetMediaType.video.rawValue
-            )
+            return items
         case .photos:
-            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+            return items.filter { $0.mediaType == .image }
         case .videos:
-            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+            return items.filter { $0.mediaType == .video }
         case .screenshots:
-            fetchOptions.predicate = NSPredicate(
-                format: "mediaType == %d AND (mediaSubtypes & %d) != 0",
-                PHAssetMediaType.image.rawValue,
-                PHAssetMediaSubtype.photoScreenshot.rawValue
-            )
+            return items.filter { $0.mediaType == .image && $0.isScreenshot }
         case .largeVideos:
-            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+            return items.filter { $0.mediaType == .video && $0.fileSizeBytes >= 100 * 1024 * 1024 }
         }
+    }
 
-        // Fetch assets
+    /// Heavy work: enumerates all images and videos and reads their on-disk sizes. Runs off the main thread.
+    private static func scanLibrary(progress: @escaping (Double) -> Void) -> [MediaItem] {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
+        fetchOptions.predicate = NSPredicate(
+            format: "mediaType == %d OR mediaType == %d",
+            PHAssetMediaType.image.rawValue,
+            PHAssetMediaType.video.rawValue
+        )
+
         let fetchResult = PHAsset.fetchAssets(with: fetchOptions)
         let totalCount = fetchResult.count
-        guard totalCount > 0 else {
-            await MainActor.run { self.isLoading = false }
-            return []
-        }
+        guard totalCount > 0 else { return [] }
 
         var items: [MediaItem] = []
         items.reserveCapacity(totalCount)
 
-        // Process in background batches
         for index in 0..<totalCount {
             let asset = fetchResult.object(at: index)
-            let size = Self.calculateDiskSize(for: asset)
+            // Safety: only keep real photos and videos
+            guard asset.mediaType == .image || asset.mediaType == .video else { continue }
+            let size = calculateDiskSize(for: asset)
+            items.append(MediaItem(asset: asset, fileSizeBytes: size))
 
-            if filter == .largeVideos {
-                // Filter videos >= 100MB (100 * 1024 * 1024 bytes)
-                if size < 100 * 1024 * 1024 {
-                    continue
-                }
-            }
-
-            let item = MediaItem(asset: asset, fileSizeBytes: size)
-            items.append(item)
-
-            if index % 50 == 0 || index == totalCount - 1 {
-                let progress = Double(index + 1) / Double(totalCount)
-                await MainActor.run {
-                    self.loadProgress = progress
-                }
+            if index % 100 == 0 || index == totalCount - 1 {
+                progress(Double(index + 1) / Double(totalCount))
             }
         }
-
-        // Sort items
-        let sortedItems = sortItems(items, by: sort)
-
-        await MainActor.run {
-            self.isLoading = false
-            self.loadProgress = 1.0
-        }
-
-        return sortedItems
+        return items
     }
 
     /// Sorts a collection of MediaItems according to the specified sort option.
@@ -162,7 +189,10 @@ public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked S
         }
     }
 
+    // MARK: - Image / Video Requests
+
     /// Request a thumbnail image for displaying in grids or cards.
+    @discardableResult
     public func requestThumbnail(
         for asset: PHAsset,
         targetSize: CGSize = CGSize(width: 300, height: 300),
@@ -184,6 +214,7 @@ public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked S
     }
 
     /// Request a high-resolution full image for previewing or swiping.
+    @discardableResult
     public func requestFullImage(
         for asset: PHAsset,
         completion: @escaping (UIImage?) -> Void
@@ -219,24 +250,32 @@ public final class PhotoLibraryManager: NSObject, ObservableObject, @unchecked S
         }
     }
 
+    // MARK: - Deletion
+
     /// Deletes the given assets using the system PHPhotoLibrary dialog.
+    @MainActor
     public func deleteAssets(_ items: [MediaItem]) async -> Result<Int, Error> {
         guard !items.isEmpty else { return .success(0) }
         let assetsToDelete = items.map { $0.asset }
 
-        return await withCheckedContinuation { continuation in
+        let outcome: (Bool, Error?) = await withCheckedContinuation { continuation in
             PHPhotoLibrary.shared().performChanges({
                 PHAssetChangeRequest.deleteAssets(assetsToDelete as NSArray)
             }) { success, error in
-                DispatchQueue.main.async {
-                    if success {
-                        HapticManager.shared.deletionSuccess()
-                        continuation.resume(returning: .success(items.count))
-                    } else {
-                        continuation.resume(returning: .failure(error ?? NSError(domain: "GallerySpaceOpener", code: -1, userInfo: [NSLocalizedDescriptionKey: "Deletion was cancelled or failed."])))
-                    }
-                }
+                continuation.resume(returning: (success, error))
             }
+        }
+
+        if outcome.0 {
+            HapticManager.shared.deletionSuccess()
+            removeFromCache(ids: Set(items.map { $0.id }))
+            return .success(items.count)
+        } else {
+            return .failure(outcome.1 ?? NSError(
+                domain: "GallerySpaceOpener",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Deletion was cancelled or failed."]
+            ))
         }
     }
 }

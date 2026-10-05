@@ -21,7 +21,11 @@ public struct MainTabView: View {
             .tag(0)
 
             // Tab 2: Tinder-like Swipe Cleaner
-            SwipeCleanDeckView(viewModel: swipeCleanVM)
+            SwipeCleanDeckView(
+                viewModel: swipeCleanVM,
+                isActive: selectedTab == 1,
+                onExit: { selectedTab = 0 }
+            )
                 .tabItem {
                     Label("Tinder Clean", systemImage: "flame.fill")
                 }

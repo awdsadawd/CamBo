@@ -5,12 +5,16 @@ import Photos
 public struct SwipeCardView: View {
     public let item: MediaItem
     public let dragOffset: CGSize
+    public let isTopCard: Bool
+    public let isActive: Bool
 
     @State private var fullImage: UIImage? = nil
 
-    public init(item: MediaItem, dragOffset: CGSize = .zero) {
+    public init(item: MediaItem, dragOffset: CGSize = .zero, isTopCard: Bool = true, isActive: Bool = true) {
         self.item = item
         self.dragOffset = dragOffset
+        self.isTopCard = isTopCard
+        self.isActive = isActive
     }
 
     public var body: some View {
@@ -20,11 +24,8 @@ public struct SwipeCardView: View {
                 ZStack {
                     Color.black
 
-                    if item.isVideo {
-                        VideoPlayerView(asset: item.asset)
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipped()
-                    } else if let image = fullImage {
+                    // Thumbnail / still image (also used as video poster)
+                    if let image = fullImage {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
@@ -33,9 +34,20 @@ public struct SwipeCardView: View {
                     } else {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .onAppear {
-                                loadCardImage()
-                            }
+                    }
+
+                    // Only the top card on the visible tab gets a live video player (prevents background audio)
+                    if item.isVideo {
+                        if isTopCard && isActive {
+                            VideoPlayerView(asset: item.asset)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                        } else {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 56))
+                                .foregroundColor(.white.opacity(0.85))
+                                .shadow(radius: 6)
+                        }
                     }
                 }
 
@@ -51,6 +63,9 @@ public struct SwipeCardView: View {
                     .stroke(borderStrokeColor, lineWidth: 2.5)
             )
             .shadow(color: Color.black.opacity(0.35), radius: 14, x: 0, y: 8)
+        }
+        .onAppear {
+            loadCardImage()
         }
     }
 
@@ -189,6 +204,7 @@ public struct SwipeCardView: View {
     }
 
     private func loadCardImage() {
+        guard fullImage == nil else { return }
         PhotoLibraryManager.shared.requestThumbnail(
             for: item.asset,
             targetSize: CGSize(width: 800, height: 1200)

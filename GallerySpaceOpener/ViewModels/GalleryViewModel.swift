@@ -57,9 +57,16 @@ public final class GalleryViewModel: ObservableObject {
         !selectedItemIds.isEmpty
     }
 
-    public func reloadMedia() async {
-        let fetched = await libraryManager.fetchMediaItems(filter: selectedFilter, sort: selectedSort)
-        self.items = fetched
+    public func reloadMedia(forceRefresh: Bool = false) async {
+        let requestedFilter = selectedFilter
+        let fetched = await libraryManager.fetchMediaItems(
+            filter: requestedFilter,
+            sort: selectedSort,
+            forceRefresh: forceRefresh
+        )
+        // Drop stale results if the user switched filters while we were loading
+        guard requestedFilter == selectedFilter else { return }
+        self.items = libraryManager.sortItems(fetched, by: selectedSort)
         self.selectedItemIds.removeAll()
     }
 

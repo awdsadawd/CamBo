@@ -34,6 +34,8 @@ public final class SwipeCleanViewModel: ObservableObject {
     // Drag gesture tracking for the topmost card
     @Published public var dragOffset: CGSize = .zero
     @Published public var cardRotation: Angle = .zero
+    /// True while a card is flying off-screen; blocks double swipes.
+    @Published public private(set) var isSwiping: Bool = false
 
     private let libraryManager = PhotoLibraryManager.shared
     private let settings = AppSettings.shared
@@ -77,6 +79,7 @@ public final class SwipeCleanViewModel: ObservableObject {
         self.undoHistory = []
         self.dragOffset = .zero
         self.cardRotation = .zero
+        self.isSwiping = false
         self.isPreparingDeck = false
     }
 
@@ -84,53 +87,55 @@ public final class SwipeCleanViewModel: ObservableObject {
 
     /// Swipe RIGHT -> Mark for DELETE
     public func swipeRightDelete() {
-        guard let item = deckItems.first else { return }
-
-        if settings.hapticsEnabled {
-            HapticManager.shared.swipeDelete()
-        }
-
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            dragOffset = CGSize(width: 600, height: 0)
-            cardRotation = Angle(degrees: 15)
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !self.deckItems.isEmpty else { return }
-            let popped = self.deckItems.removeFirst()
-            popped.isMarkedForDeletion = true
-            self.swipedDeletedItems.append(popped)
-            self.undoHistory.append(SwipeHistoryItem(item: popped, action: .delete))
-            self.resetCardOffset()
-
-            if self.deckItems.isEmpty {
-                self.showReviewScreen = true
-            }
-        }
+        performSwipe(.delete)
     }
 
     /// Swipe LEFT -> KEEP
     public func swipeLeftKeep() {
-        guard let item = deckItems.first else { return }
+        performSwipe(.keep)
+    }
+
+    private func performSwipe(_ action: SwipeAction) {
+        // Lock: ignore extra taps / drags while the fly-out animation is running
+        guard !isSwiping, let item = deckItems.first else { return }
+        isSwiping = true
 
         if settings.hapticsEnabled {
-            HapticManager.shared.swipeKeep()
+            if action == .delete {
+                HapticManager.shared.swipeDelete()
+            } else {
+                HapticManager.shared.swipeKeep()
+            }
         }
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            dragOffset = CGSize(width: -600, height: 0)
-            cardRotation = Angle(degrees: -15)
+        let direction: CGFloat = (action == .delete) ? 1 : -1
+        withAnimation(.easeIn(duration: 0.22)) {
+            dragOffset = CGSize(width: 650 * direction, height: 40)
+            cardRotation = Angle(degrees: 18 * Double(direction))
         }
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !self.deckItems.isEmpty else { return }
-            let popped = self.deckItems.removeFirst()
-            popped.isMarkedForDeletion = false
-            self.swipedKeptItems.append(popped)
-            self.undoHistory.append(SwipeHistoryItem(item: popped, action: .keep))
-            self.resetCardOffset()
+            try? await Task.sleep(nanoseconds: 230_000_000)
+
+            // Remove exactly the card that was swiped
+            if let index = self.deckItems.firstIndex(where: { $0.id == item.id }) {
+                self.deckItems.remove(at: index)
+            }
+            item.isMarkedForDeletion = (action == .delete)
+            if action == .delete {
+                self.swipedDeletedItems.append(item)
+            } else {
+                self.swipedKeptItems.append(item)
+            }
+            self.undoHistory.append(SwipeHistoryItem(item: item, action: action))
+
+            // Reset without animation so the next card appears centered instantly
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                self.resetCardOffset()
+            }
+            self.isSwiping = false
 
             if self.deckItems.isEmpty {
                 self.showReviewScreen = true
@@ -140,7 +145,7 @@ public final class SwipeCleanViewModel: ObservableObject {
 
     /// Reverts the most recent swipe action.
     public func undoLastSwipe() {
-        guard let last = undoHistory.popLast() else { return }
+        guard !isSwiping, let last = undoHistory.popLast() else { return }
 
         if settings.hapticsEnabled {
             HapticManager.shared.undo()

@@ -3,10 +3,14 @@ import SwiftUI
 /// Main Tinder-like swiping deck where users swipe right to delete and left to keep.
 public struct SwipeCleanDeckView: View {
     @ObservedObject var viewModel: SwipeCleanViewModel
-    @Environment(\.dismiss) private var dismiss
+    /// True only while the Tinder tab is on screen. Videos never play when false.
+    public let isActive: Bool
+    public let onExit: () -> Void
 
-    public init(viewModel: SwipeCleanViewModel) {
+    public init(viewModel: SwipeCleanViewModel, isActive: Bool = true, onExit: @escaping () -> Void = {}) {
         self.viewModel = viewModel
+        self.isActive = isActive
+        self.onExit = onExit
     }
 
     public var body: some View {
@@ -44,7 +48,7 @@ public struct SwipeCleanDeckView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Exit") {
-                        dismiss()
+                        onExit()
                     }
                 }
 
@@ -121,44 +125,53 @@ public struct SwipeCleanDeckView: View {
     // MARK: - Card Stack View
     private var cardStackView: some View {
         ZStack {
-            // Background Next Card
+            // Background Next Card (no live video, no gestures)
             if let nextItem = viewModel.nextCard {
-                SwipeCardView(item: nextItem)
+                SwipeCardView(item: nextItem, isTopCard: false, isActive: isActive)
+                    .id(nextItem.id)
                     .scaleEffect(0.95)
                     .offset(y: 12)
                     .allowsHitTesting(false)
             }
 
-            // Foreground Top Card with Interactive Drag Gesture
+            // Foreground Top Card with Interactive Drag Gesture.
+            // `.id(currentItem.id)` is critical: it forces a brand-new view (new image + new player)
+            // for every card instead of reusing the previous card's state.
             if let currentItem = viewModel.currentCard {
-                SwipeCardView(item: currentItem, dragOffset: viewModel.dragOffset)
+                SwipeCardView(item: currentItem, dragOffset: viewModel.dragOffset, isTopCard: true, isActive: isActive)
+                    .id(currentItem.id)
                     .offset(viewModel.dragOffset)
                     .rotationEffect(viewModel.cardRotation)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { gesture in
-                                viewModel.dragOffset = gesture.translation
-                                viewModel.cardRotation = Angle(degrees: Double(gesture.translation.width / 22.0))
-                            }
-                            .onEnded { gesture in
-                                let threshold: CGFloat = 120
-                                if gesture.translation.width > threshold {
-                                    // Swipe Right -> DELETE
-                                    viewModel.swipeRightDelete()
-                                } else if gesture.translation.width < -threshold {
-                                    // Swipe Left -> KEEP
-                                    viewModel.swipeLeftKeep()
-                                } else {
-                                    // Snap back
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                        viewModel.resetCardOffset()
-                                    }
-                                }
-                            }
-                    )
+                    .zIndex(1)
+                    .gesture(dragGesture)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { gesture in
+                guard !viewModel.isSwiping else { return }
+                viewModel.dragOffset = gesture.translation
+                viewModel.cardRotation = Angle(degrees: Double(gesture.translation.width / 22.0))
+            }
+            .onEnded { gesture in
+                guard !viewModel.isSwiping else { return }
+                let threshold: CGFloat = 120
+                if gesture.translation.width > threshold {
+                    // Swipe Right -> DELETE
+                    viewModel.swipeRightDelete()
+                } else if gesture.translation.width < -threshold {
+                    // Swipe Left -> KEEP
+                    viewModel.swipeLeftKeep()
+                } else {
+                    // Snap back
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        viewModel.resetCardOffset()
+                    }
+                }
+            }
     }
 
     // MARK: - Loading Deck View
@@ -212,7 +225,7 @@ public struct SwipeCleanDeckView: View {
             }
 
             Button("Return to Gallery") {
-                dismiss()
+                onExit()
             }
             .font(.system(size: 15, weight: .semibold))
             .foregroundColor(.secondary)
