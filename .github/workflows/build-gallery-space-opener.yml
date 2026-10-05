@@ -1,0 +1,61 @@
+name: Build GallerySpaceOpener iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Build & Package GallerySpaceOpener IPA
+    runs-on: macos-14 # Apple Silicon M1/M2 runner
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.4'
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-xcode-gso-${{ hashFiles('GallerySpaceOpener.xcodeproj/**') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-gso-
+
+      - name: Build Archive (Unsigned for Sideloading / AltStore / Sideloadly)
+        run: |
+          echo "Starting xcodebuild archive for GallerySpaceOpener..."
+          xcodebuild archive \
+            -project GallerySpaceOpener.xcodeproj \
+            -scheme GallerySpaceOpener \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/GallerySpaceOpener.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Package .IPA file
+        run: |
+          echo "Packaging .app into .ipa (Payload structure)..."
+          mkdir -p build/ipa-package-gso/Payload
+          cp -r "build/GallerySpaceOpener.xcarchive/Products/Applications/GallerySpaceOpener.app" "build/ipa-package-gso/Payload/"
+          cd build/ipa-package-gso
+          zip -r -9 ../GallerySpaceOpener.ipa Payload
+          cd ../..
+          echo "Successfully created build/GallerySpaceOpener.ipa"
+          ls -lh build/GallerySpaceOpener.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GallerySpaceOpener-iOS-IPA
+          path: build/GallerySpaceOpener.ipa
+          if-no-files-found: error
+          retention-days: 14
